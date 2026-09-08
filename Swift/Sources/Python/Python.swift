@@ -1,4 +1,10 @@
 import CPython
+import PythonModules
+import _apple_support
+import encodings
+import zlib
+
+@_exported import struct PythonModules.PythonModule
 
 import Foundation
 
@@ -7,17 +13,10 @@ import Foundation
 /// CPython is a process-wide singleton, so every entry point here is static,
 /// mirroring the C API it wraps.
 public enum Python {
-    /// The interpreter home shipped with this package: a `lib/python<X.Y>`
-    /// holding the minimal stdlib, staged by Swift/build.sh and copied into
-    /// the resource bundle by SwiftPM. In an app that bundle sits inside
-    /// `Contents/Resources`, which a sandboxed process can read — unlike the
-    /// CPython checkout it was built from.
-    public static var defaultHome: String? {
-        guard let home = Bundle.module.url(forResource: "PythonHome", withExtension: nil),
-              (try? home.appendingPathComponent("lib").checkResourceIsReachable()) == true else {
-            return nil
-        }
-        return home.path
+    /// The stdlib always linked in: what the interpreter imports while starting,
+    /// plus `zlib`, without which zipped imports and archives do not work.
+    public static var essentialModules: [PythonModule] {
+        [.encodings, .appleSupport, .zlib]
     }
 
     /// The interpreter's version, e.g. `3.16.0a0 (heads/main, ...)`.
@@ -32,11 +31,24 @@ public enum Python {
     ///
     /// The configuration is *isolated*: no `site` import, no environment
     /// variables, no signal handlers — only what an embedded interpreter needs.
-    public static func initialize(home: String? = defaultHome) throws {
+    public static func initialize(modules: [PythonModule] = []) throws {
         guard !isInitialized else { return }
-        guard let home else {
-            throw PythonError.initializationFailed(
-                "no stdlib in \(Bundle.module.bundlePath); run Swift/build.sh")
+
+        let all = essentialModules + modules
+        let searchPaths = all.flatMap(\.searchPaths)
+        guard !searchPaths.isEmpty else {
+            throw PythonError.initializationFailed("no stdlib bundled; run Swift/build.sh")
+        }
+
+        // The inittab is read during initialization, so C modules have to be
+        // registered before it.
+        for builtin in all.flatMap(\.builtins) {
+            // CPython stores the name pointer as-is, so it has to outlive this
+            // call: the copy is deliberately never freed.
+            let name = strdup(builtin.name)
+            guard PyImport_AppendInittab(name, builtin.initializer) == 0 else {
+                throw PythonError.initializationFailed("could not register \(builtin.name)")
+            }
         }
 
         var configuration = PyConfig()
@@ -44,7 +56,18 @@ public enum Python {
         defer { PyConfig_Clear(&configuration) }
 
         try withUnsafeMutablePointer(to: &configuration) { configuration in
-            try check(PyConfig_SetBytesString(configuration, &configuration.pointee.home, home))
+            // sys.path is set outright rather than computed from a prefix:
+            // the stdlib is spread across one resource bundle per module,
+            // and `encodings` has to be found before initialization finishes.
+            for path in searchPaths {
+                guard let wide = Py_DecodeLocale(path, nil) else {
+                    throw PythonError.initializationFailed("could not decode \(path)")
+                }
+                defer { PyMem_RawFree(wide) }
+                try check(PyWideStringList_Append(
+                    &configuration.pointee.module_search_paths, wide))
+            }
+            configuration.pointee.module_search_paths_set = 1
             configuration.pointee.site_import = 0
             configuration.pointee.install_signal_handlers = 0
             try check(Py_InitializeFromConfig(configuration))
@@ -53,6 +76,16 @@ public enum Python {
         // Initialization leaves the GIL held by this thread. Release it, so any
         // thread can take it through `withGIL`.
         parkedThreadState = PyEval_SaveThread()
+    }
+
+    /// Adds a directory to `sys.path`.
+    public static func addSearchPath(_ path: String) throws {
+        try run("import sys; sys.path.append(\(pythonLiteral(path)))")
+    }
+
+    private static func pythonLiteral(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "\\", with: "\\\\")
+                  .replacingOccurrences(of: "'", with: "\\'") + "'"
     }
 
     /// Runs `body` while holding the global interpreter lock.
