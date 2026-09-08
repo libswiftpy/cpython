@@ -115,6 +115,36 @@ struct PythonTests {
         #expect(sys.swiftpy_marker == nil)
     }
 
+    @Test func convertsStringsBothWays() throws {
+        let object = try "héllo".toPython()
+        #expect(String(object) == "héllo")
+        #expect(try Python.string(of: object) == "héllo")
+
+        // A wrong type reads as nil, and `cast` says what it wanted.
+        let number = try PythonCompiler.compile("42", mode: .evaluation)
+        let notAString = try Python.execute(number)
+        #expect(String(notAString) == nil)
+
+        do {
+            _ = try String.cast(notAString)
+            Issue.record("expected a TypeError")
+        } catch {
+            #expect(error.type == "TypeError")
+            #expect(error.value == "Expected str got int at position 0")
+        }
+    }
+
+    @Test func writesIntoAnExistingBox() throws {
+        let box = try "first".toPython()
+        let held = box.reference
+
+        try "second".toPython(box)
+        #expect(String(box) == "second")
+
+        // The old object is released, not rewritten: only the box moved.
+        #expect(box.reference != held)
+    }
+
     @Test func compileErrorsCarryTheFilename() throws {
         do {
             _ = try PythonCompiler.compile("def f(", filename: "<cell>")
