@@ -152,7 +152,7 @@ public enum Python {
     }
 
     /// `type(exception).__name__`, or a fallback when even that fails.
-    private static func typeName(of exception: UnsafeMutablePointer<PyObject>) -> String {
+    static func typeName(of exception: UnsafeMutablePointer<PyObject>) -> String {
         guard let type = PyObject_GetAttrString(exception, "__class__") else {
             PyErr_Clear()
             return "Exception"

@@ -15,7 +15,7 @@ extension Python {
         let globals = if let globals { globals } else { try mainNamespace() }
         let locals = locals ?? globals
 
-        guard let result = PyEval_EvalCode(code.pointer, globals.pointer, locals.pointer) else {
+        guard let result = PyEval_EvalCode(code.reference, globals.reference, locals.reference) else {
             throw raisedError()
         }
         return PythonObject(consuming: result)
@@ -35,7 +35,7 @@ extension Python {
 
     /// `str()` of an object.
     public static func string(of object: PythonObject) throws(PythonError) -> String {
-        guard let text = PyObject_Str(object.pointer) else { throw raisedError() }
+        guard let text = PyObject_Str(object.reference) else { throw raisedError() }
         defer { Py_DecRef(text) }
 
         guard let utf8 = PyUnicode_AsUTF8(text) else { throw raisedError() }
