@@ -11,23 +11,24 @@ extension Python {
     ///     try Python.redirectOutput { print("python:", $0, terminator: "") }
     ///
     /// Pass `nil` to restore the interpreter's own streams.
-    public static func redirectOutput(to hook: ((String) -> Void)?) throws {
+    public static func redirectOutput(to hook: ((String) -> Void)?) throws(PythonError) {
         outputHook = hook
 
         guard hook != nil else {
-            try run("import sys; sys.stdout = sys.__stdout__; sys.stderr = sys.__stderr__")
+            let sys = try Python.module("sys")
+            sys.stdout = sys.__stdout__
+            sys.stderr = sys.__stderr__
             return
         }
 
-        try withGIL {
-            guard let main = PyImport_AddModule("__main__"),
-                  let globals = PyModule_GetDict(main),
-                  let write = PyCFunction_NewEx(writeMethod, nil, nil) else {
-                throw PythonError.executionFailed
-            }
-            defer { Py_DecRef(write) }
-            PyDict_SetItemString(globals, "_swift_write", write)
+        guard let main = PyImport_AddModule("__main__"),
+              let globals = PyModule_GetDict(main),
+              let write = PyCFunction_NewEx(writeMethod, nil, nil) else {
+            throw .SystemError("could not make the write hook")
         }
+        // The dict takes its own reference, so drop ours after inserting.
+        PyDict_SetItemString(globals, "_swift_write", write)
+        Py_DecRef(write)
 
         // A file-like object is all sys.stdout has to be; `print` only ever
         // calls write(), and the interpreter calls flush() on shutdown.
