@@ -5,7 +5,7 @@ import CPython
 @Suite(.serialized)
 @MainActor
 struct RefCountTests {
-    init() throws { try Python.initialize() }
+    init() throws { try PyRuntime.initialize() }
 
     @Test func dynamicMemberLookupDoesNotLeak() throws {
         let sys = try cpy.module("sys")

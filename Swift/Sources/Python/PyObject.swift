@@ -22,7 +22,7 @@ public extension PyReferencing {
     var isNone: Bool { Py_IsNone(reference) != 0 }
 
     /// `type(self).__name__`.
-    var typeName: String { Python.typeName(of: reference) }
+    var typeName: String { PyRuntime.typeName(of: reference) }
 }
 
 /// A Python object, kept alive for as long as this wrapper is.
@@ -154,7 +154,7 @@ public final class PyObject: PyReferencing, @unchecked Sendable {
         }
 
         guard let result = PyObject_Call(reference, tuple, nil) else {
-            throw Python.raisedError()
+            throw PyRuntime.raisedError()
         }
         return PyObject(consuming: result)
     }

@@ -1,6 +1,6 @@
 import CPython
 
-extension Python {
+extension PyRuntime {
     /// Calls `function` with string arguments, returning a new reference.
     static func call(
         _ function: PyRef,

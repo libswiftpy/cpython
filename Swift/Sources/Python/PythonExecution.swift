@@ -1,6 +1,6 @@
 import CPython
 
-extension Python {
+extension PyRuntime {
     /// Runs a code object from ``PythonCompiler/compile(_:filename:mode:)``.
     ///
     /// Defaults to `__main__`'s namespace. Pass a ``namespace()`` of your own

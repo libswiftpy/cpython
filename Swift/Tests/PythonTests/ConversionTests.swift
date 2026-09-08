@@ -5,11 +5,11 @@ import Foundation
 @Suite(.serialized)
 @MainActor
 struct ConversionTests {
-    init() throws { try Python.initialize() }
+    init() throws { try PyRuntime.initialize() }
 
     /// `str()` of the object a Swift value converts to.
     private func roundTrip(_ value: some PythonConvertible) throws -> String {
-        try Python.string(of: value.toPython())
+        try PyRuntime.string(of: value.toPython())
     }
 
     @Test func convertsScalarsToPython() throws {
@@ -24,7 +24,7 @@ struct ConversionTests {
 
     @Test func convertsScalarsBackToSwift() throws {
         func evaluate(_ expression: String) throws -> PyObject {
-            try Python.execute(PythonCompiler.compile(expression, mode: .evaluation))
+            try PyRuntime.execute(PythonCompiler.compile(expression, mode: .evaluation))
         }
 
         #expect(Bool(try evaluate("True")) == true)
@@ -70,15 +70,15 @@ struct ConversionTests {
 @Suite(.serialized)
 @MainActor
 struct CollectionConversionTests {
-    init() throws { try Python.initialize() }
+    init() throws { try PyRuntime.initialize() }
 
     private func evaluate(_ expression: String) throws -> PyObject {
-        try Python.execute(PythonCompiler.compile(expression, mode: .evaluation))
+        try PyRuntime.execute(PythonCompiler.compile(expression, mode: .evaluation))
     }
 
     @Test func convertsArrays() throws {
-        #expect(try Python.string(of: [1, 2, 3].toPython()) == "[1, 2, 3]")
-        #expect(try Python.string(of: ["a", "b"].toPython()) == "['a', 'b']")
+        #expect(try PyRuntime.string(of: [1, 2, 3].toPython()) == "[1, 2, 3]")
+        #expect(try PyRuntime.string(of: ["a", "b"].toPython()) == "['a', 'b']")
 
         #expect([Int](try evaluate("[1, 2, 3]")) == [1, 2, 3])
 
@@ -92,7 +92,7 @@ struct CollectionConversionTests {
 
     @Test func convertsDictionaries() throws {
         let object = try ["answer": 42].toPython()
-        #expect(try Python.string(of: object) == "{'answer': 42}")
+        #expect(try PyRuntime.string(of: object) == "{'answer': 42}")
 
         let read = [String: Int](try evaluate("{'a': 1, 'b': 2}"))
         #expect(read == ["a": 1, "b": 2])
@@ -134,7 +134,7 @@ struct CollectionConversionTests {
 @Suite(.serialized)
 @MainActor
 struct CallTests {
-    init() throws { try Python.initialize() }
+    init() throws { try PyRuntime.initialize() }
 
     @Test func callsBuiltinsAndBridgesTheResult() throws {
         let builtins = try cpy.module("builtins")

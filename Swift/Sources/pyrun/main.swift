@@ -4,7 +4,7 @@ import Python
 let source = CommandLine.arguments.dropFirst().joined(separator: "\n")
 
 // No initialize call: the first use of `cpy` starts the interpreter.
-defer { Python.finalize() }
+defer { PyRuntime.finalize() }
 
 if source.isEmpty {
     print("CPython \(cpy.version)")

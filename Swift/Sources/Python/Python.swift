@@ -17,7 +17,7 @@ import Foundation
 /// single-threaded: the GIL is taken there during initialization and never
 /// released, so the isolation and the lock describe the same thread.
 @MainActor
-public enum Python {
+public enum PyRuntime {
     /// The stdlib always linked in: what the interpreter imports while starting,
     /// plus `zlib`, without which zipped imports and archives do not work.
     public static var essentialModules: [PythonModule] {
