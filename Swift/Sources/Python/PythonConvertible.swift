@@ -1,30 +1,30 @@
 import CPython
 import Foundation
 
-/// Bridges a Swift value to Python and back, the counterpart of SwiftPy's
-/// protocol of the same name.
+/// Bridges a Swift value to Python and back, spelled the same as SwiftPy's
+/// protocol.
 ///
 /// `toPython()` returns a new object rather than filling a caller's slot the
 /// way pocketpy does: a CPython value is a heap object with a refcount, so
 /// there is no slot to write into — and no `pushtmp`/`pop` to balance.
 @MainActor
 public protocol PythonConvertible {
-    func toPython() throws(PythonError) -> PythonObject
+    func toPython() throws(PythonError) -> PyObject
 
-    static func fromPython(_ reference: PythonRef) -> Self
+    static func fromPython(_ reference: PyRef) -> Self
 
-    static var pyType: PythonType { get }
+    static var pyType: PyType { get }
 
     /// Converts, or `nil` when the object is not this type.
     ///
     /// A requirement rather than an extension member so that a collection can
     /// call it through `Element.self as? any PythonConvertible.Type`.
-    init?(_ reference: PythonRef?)
+    init?(_ reference: PyRef?)
 }
 
 public extension PythonConvertible {
     /// Converts a Python object, or `nil` when it is not this type.
-    init?(_ reference: PythonRef?) {
+    init?(_ reference: PyRef?) {
         guard let reference,
               Self.pyType.isExactType(of: reference) || Self.pyType.isInstance(reference) else {
             return nil
@@ -33,7 +33,7 @@ public extension PythonConvertible {
     }
 
     /// The same, for anything holding a reference.
-    init?(_ value: (some PythonReferencing)?) {
+    init?(_ value: (some PyReferencing)?) {
         self.init(value?.reference)
     }
 
@@ -41,13 +41,13 @@ public extension PythonConvertible {
     ///
     /// pocketpy writes into a caller's slot; here the box is repointed at a new
     /// object instead, because a CPython object cannot change its type in place.
-    func toPython(_ object: PythonObject) throws(PythonError) {
+    func toPython(_ object: PyObject) throws(PythonError) {
         object.assign(try toPython())
     }
 
     /// Converts, or throws a `TypeError` naming what was expected.
     static func cast(
-        _ value: (some PythonReferencing)?,
+        _ value: (some PyReferencing)?,
         _ offset: Int = 0
     ) throws(PythonError) -> Self {
         guard let reference = value?.reference else {
@@ -67,16 +67,16 @@ public extension PythonConvertible {
 }
 
 extension String: PythonConvertible {
-    public static var pyType: PythonType { .str }
+    public static var pyType: PyType { .str }
 
-    public func toPython() throws(PythonError) -> PythonObject {
+    public func toPython() throws(PythonError) -> PyObject {
         guard let object = PyUnicode_FromString(self) else {
             throw .SystemError("could not make a str")
         }
-        return PythonObject(consuming: object)
+        return PyObject(consuming: object)
     }
 
-    public static func fromPython(_ reference: PythonRef) -> String {
+    public static func fromPython(_ reference: PyRef) -> String {
         guard let utf8 = PyUnicode_AsUTF8(reference) else {
             PyErr_Clear()
             return ""
@@ -86,31 +86,31 @@ extension String: PythonConvertible {
 }
 
 extension Bool: PythonConvertible {
-    public static var pyType: PythonType { .bool }
+    public static var pyType: PyType { .bool }
 
-    public func toPython() throws(PythonError) -> PythonObject {
+    public func toPython() throws(PythonError) -> PyObject {
         guard let object = PyBool_FromLong(self ? 1 : 0) else {
             throw .SystemError("could not make a bool")
         }
-        return PythonObject(consuming: object)
+        return PyObject(consuming: object)
     }
 
-    public static func fromPython(_ reference: PythonRef) -> Bool {
+    public static func fromPython(_ reference: PyRef) -> Bool {
         PyObject_IsTrue(reference) == 1
     }
 }
 
 extension Int: PythonConvertible {
-    public static var pyType: PythonType { .int }
+    public static var pyType: PyType { .int }
 
-    public func toPython() throws(PythonError) -> PythonObject {
+    public func toPython() throws(PythonError) -> PyObject {
         guard let object = PyLong_FromLong(self) else {
             throw .SystemError("could not make an int")
         }
-        return PythonObject(consuming: object)
+        return PyObject(consuming: object)
     }
 
-    public static func fromPython(_ reference: PythonRef) -> Int {
+    public static func fromPython(_ reference: PyRef) -> Int {
         let value = PyLong_AsLong(reference)
         if value == -1, PyErr_Occurred() != nil {
             PyErr_Clear()
@@ -125,9 +125,9 @@ extension Int: PythonConvertible {
     /// Isolation is not inferred here: this shadows a protocol *extension*
     /// member rather than fulfilling a requirement.
     @MainActor
-    public init?(_ reference: PythonRef?) {
+    public init?(_ reference: PyRef?) {
         guard let reference,
-              !PythonType.bool.isExactType(of: reference),
+              !PyType.bool.isExactType(of: reference),
               Int.pyType.isInstance(reference) else {
             return nil
         }
@@ -136,28 +136,28 @@ extension Int: PythonConvertible {
 }
 
 extension Int64: PythonConvertible {
-    public static var pyType: PythonType { .int }
+    public static var pyType: PyType { .int }
 
-    public func toPython() throws(PythonError) -> PythonObject {
+    public func toPython() throws(PythonError) -> PyObject {
         try Int(self).toPython()
     }
 
-    public static func fromPython(_ reference: PythonRef) -> Int64 {
+    public static func fromPython(_ reference: PyRef) -> Int64 {
         Int64(Int.fromPython(reference))
     }
 }
 
 extension Double: PythonConvertible {
-    public static var pyType: PythonType { .float }
+    public static var pyType: PyType { .float }
 
-    public func toPython() throws(PythonError) -> PythonObject {
+    public func toPython() throws(PythonError) -> PyObject {
         guard let object = PyFloat_FromDouble(self) else {
             throw .SystemError("could not make a float")
         }
-        return PythonObject(consuming: object)
+        return PyObject(consuming: object)
     }
 
-    public static func fromPython(_ reference: PythonRef) -> Double {
+    public static func fromPython(_ reference: PyRef) -> Double {
         let value = PyFloat_AsDouble(reference)
         if value == -1, PyErr_Occurred() != nil {
             PyErr_Clear()
@@ -168,21 +168,21 @@ extension Double: PythonConvertible {
 }
 
 extension Float: PythonConvertible {
-    public static var pyType: PythonType { .float }
+    public static var pyType: PyType { .float }
 
-    public func toPython() throws(PythonError) -> PythonObject {
+    public func toPython() throws(PythonError) -> PyObject {
         try Double(self).toPython()
     }
 
-    public static func fromPython(_ reference: PythonRef) -> Float {
+    public static func fromPython(_ reference: PyRef) -> Float {
         Float(Double.fromPython(reference))
     }
 }
 
 extension Data: PythonConvertible {
-    public static var pyType: PythonType { .bytes }
+    public static var pyType: PyType { .bytes }
 
-    public func toPython() throws(PythonError) -> PythonObject {
+    public func toPython() throws(PythonError) -> PyObject {
         let object = withUnsafeBytes { buffer in
             PyBytes_FromStringAndSize(
                 buffer.baseAddress?.assumingMemoryBound(to: CChar.self),
@@ -190,10 +190,10 @@ extension Data: PythonConvertible {
             )
         }
         guard let object else { throw .SystemError("could not make bytes") }
-        return PythonObject(consuming: object)
+        return PyObject(consuming: object)
     }
 
-    public static func fromPython(_ reference: PythonRef) -> Data {
+    public static func fromPython(_ reference: PyRef) -> Data {
         var buffer: UnsafeMutablePointer<CChar>?
         var length = 0
         guard PyBytes_AsStringAndSize(reference, &buffer, &length) == 0,
@@ -206,38 +206,38 @@ extension Data: PythonConvertible {
 }
 
 extension Optional: PythonConvertible where Wrapped: PythonConvertible {
-    public static var pyType: PythonType { Wrapped.pyType }
+    public static var pyType: PyType { Wrapped.pyType }
 
-    public func toPython() throws(PythonError) -> PythonObject {
+    public func toPython() throws(PythonError) -> PyObject {
         guard let self else { return .none }
         return try self.toPython()
     }
 
-    public static func fromPython(_ reference: PythonRef) -> Wrapped? {
+    public static func fromPython(_ reference: PyRef) -> Wrapped? {
         reference.isNone ? nil : Wrapped(reference)
     }
 }
 
-extension PythonObject: PythonConvertible {
-    public static var pyType: PythonType { .object }
+extension PyObject: PythonConvertible {
+    public static var pyType: PyType { .object }
 
-    public func toPython() throws(PythonError) -> PythonObject { self }
+    public func toPython() throws(PythonError) -> PyObject { self }
 
-    public static func fromPython(_ reference: PythonRef) -> PythonObject {
-        PythonObject(retaining: reference)
+    public static func fromPython(_ reference: PyRef) -> PyObject {
+        PyObject(retaining: reference)
     }
 }
 
 // MARK: - Collections
 
 extension Array: PythonConvertible {
-    public static var pyType: PythonType { .list }
+    public static var pyType: PyType { .list }
 
-    public func toPython() throws(PythonError) -> PythonObject {
+    public func toPython() throws(PythonError) -> PyObject {
         guard let list = PyList_New(0) else {
             throw .SystemError("could not make a list")
         }
-        let object = PythonObject(consuming: list)
+        let object = PyObject(consuming: list)
 
         for element in self {
             guard let element = element as? PythonConvertible else {
@@ -251,7 +251,7 @@ extension Array: PythonConvertible {
         return object
     }
 
-    public static func fromPython(_ reference: PythonRef) -> [Element] {
+    public static func fromPython(_ reference: PyRef) -> [Element] {
         var items: [Element] = []
 
         guard let iterator = PyObject_GetIter(reference) else {
@@ -278,13 +278,13 @@ extension Array: PythonConvertible {
 }
 
 extension Dictionary: PythonConvertible where Key: PythonConvertible {
-    public static var pyType: PythonType { .dict }
+    public static var pyType: PyType { .dict }
 
-    public func toPython() throws(PythonError) -> PythonObject {
+    public func toPython() throws(PythonError) -> PyObject {
         guard let dictionary = PyDict_New() else {
             throw .SystemError("could not make a dict")
         }
-        let object = PythonObject(consuming: dictionary)
+        let object = PyObject(consuming: dictionary)
 
         for (key, value) in self {
             guard let value = value as? PythonConvertible else {
@@ -299,7 +299,7 @@ extension Dictionary: PythonConvertible where Key: PythonConvertible {
         return object
     }
 
-    public static func fromPython(_ reference: PythonRef) -> [Key: Value] {
+    public static func fromPython(_ reference: PyRef) -> [Key: Value] {
         var result: [Key: Value] = [:]
 
         // `items()` rather than PyDict_Next, so any mapping converts.
@@ -344,7 +344,7 @@ extension Dictionary: PythonConvertible where Key: PythonConvertible {
 // MARK: - Reference -> Any?
 
 @MainActor
-public extension PythonReferencing {
+public extension PyReferencing {
     /// The closest Swift value, or `nil` when nothing fits.
     var asAny: Any? {
         if let value = String(reference) { return value }

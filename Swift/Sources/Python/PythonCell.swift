@@ -3,9 +3,9 @@ import CPython
 extension Python {
     /// Calls `function` with string arguments, returning a new reference.
     static func call(
-        _ function: UnsafeMutablePointer<PyObject>,
+        _ function: PyRef,
         with arguments: [String]
-    ) throws(PythonError) -> UnsafeMutablePointer<PyObject> {
+    ) throws(PythonError) -> PyRef {
         guard let tuple = PyTuple_New(arguments.count) else {
             throw .SystemError("could not allocate an argument tuple")
         }
@@ -28,7 +28,7 @@ extension Python {
     /// `str()` of a raised exception, with its traceback, or `nil` when the
     /// helpers are not up yet — which is the one case that must not recurse.
     static func formattedException(
-        _ exception: UnsafeMutablePointer<PyObject>
+        _ exception: PyRef
     ) -> String? {
         guard helpers != nil,
               let format = try? helper("_format_exception") else { return nil }
@@ -50,10 +50,10 @@ extension Python {
 
     /// The `_swiftpy` module, holding what is easier to write in Python than
     /// through the C API. Built on first use and kept for the process lifetime.
-    private static var helpers: UnsafeMutablePointer<PyObject>?
+    private static var helpers: PyRef?
 
     /// Returns a new reference to one of the helpers.
-    static func helper(_ name: String) throws(PythonError) -> UnsafeMutablePointer<PyObject> {
+    static func helper(_ name: String) throws(PythonError) -> PyRef {
         if helpers == nil {
             guard let module = PyImport_AddModule("_swiftpy"),
                   let namespace = PyModule_GetDict(module) else {
