@@ -7,10 +7,10 @@ extension Python {
     /// for code that should not see, or be seen by, what runs there.
     @discardableResult
     public static func execute(
-        _ code: PythonObject,
-        globals: PythonObject? = nil,
-        locals: PythonObject? = nil
-    ) throws(PythonError) -> PythonObject {
+        _ code: PyObject,
+        globals: PyObject? = nil,
+        locals: PyObject? = nil
+    ) throws(PythonError) -> PyObject {
         // `??` widens a typed throw to `any Error`, so spell the fallback out.
         let globals = if let globals { globals } else { try mainNamespace() }
         let locals = locals ?? globals
@@ -18,13 +18,13 @@ extension Python {
         guard let result = PyEval_EvalCode(code.reference, globals.reference, locals.reference) else {
             throw raisedError()
         }
-        return PythonObject(consuming: result)
+        return PyObject(consuming: result)
     }
 
     /// A fresh namespace, seeded with the builtins so code can run in it.
-    public static func namespace() throws(PythonError) -> PythonObject {
+    public static func namespace() throws(PythonError) -> PyObject {
         guard let dictionary = PyDict_New() else { throw .SystemError("could not allocate a dict") }
-        let namespace = PythonObject(consuming: dictionary)
+        let namespace = PyObject(consuming: dictionary)
 
         guard let builtins = PyEval_GetBuiltins(),
               PyDict_SetItemString(dictionary, "__builtins__", builtins) == 0 else {
@@ -34,7 +34,7 @@ extension Python {
     }
 
     /// `str()` of an object.
-    public static func string(of object: PythonObject) throws(PythonError) -> String {
+    public static func string(of object: PyObject) throws(PythonError) -> String {
         guard let text = PyObject_Str(object.reference) else { throw raisedError() }
         defer { Py_DecRef(text) }
 
@@ -43,19 +43,19 @@ extension Python {
     }
 
     /// The module `name`, importing it the way `import name` does.
-    public static func module(_ name: String) throws(PythonError) -> PythonObject {
+    public static func module(_ name: String) throws(PythonError) -> PyObject {
         guard let module = PyImport_ImportModule(name) else { throw raisedError() }
-        return PythonObject(consuming: module)
+        return PyObject(consuming: module)
     }
 
     /// `__main__`'s namespace, which is where console input runs.
-    static func mainNamespace() throws(PythonError) -> PythonObject {
+    static func mainNamespace() throws(PythonError) -> PyObject {
         guard let main = PyImport_AddModule("__main__"),
               let namespace = PyModule_GetDict(main) else {
             throw .SystemError("__main__ is missing")
         }
         // Both are borrowed references.
         Py_IncRef(namespace)
-        return PythonObject(consuming: namespace)
+        return PyObject(consuming: namespace)
     }
 }

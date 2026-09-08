@@ -23,7 +23,7 @@ struct ConversionTests {
     }
 
     @Test func convertsScalarsBackToSwift() throws {
-        func evaluate(_ expression: String) throws -> PythonObject {
+        func evaluate(_ expression: String) throws -> PyObject {
             try Python.execute(PythonCompiler.compile(expression, mode: .evaluation))
         }
 
@@ -51,7 +51,7 @@ struct ConversionTests {
         #expect(try roundTrip(nothing) == "None")
         #expect(try roundTrip(String?("here")) == "here")
 
-        let none = PythonObject.none
+        let none = PyObject.none
         #expect(String?(none) == nil)
         #expect(String?(try "here".toPython()) == "here")
     }
@@ -59,7 +59,7 @@ struct ConversionTests {
     /// A borrowed reference converts without wrapping it in a box first.
     @Test func convertsFromABorrowedReference() throws {
         let object = try "borrowed".toPython()
-        let reference: PythonRef = object.reference
+        let reference: PyRef = object.reference
 
         #expect(String(reference) == "borrowed")
         #expect(try String.cast(reference) == "borrowed")
@@ -72,7 +72,7 @@ struct ConversionTests {
 struct CollectionConversionTests {
     init() throws { try Python.initialize() }
 
-    private func evaluate(_ expression: String) throws -> PythonObject {
+    private func evaluate(_ expression: String) throws -> PyObject {
         try Python.execute(PythonCompiler.compile(expression, mode: .evaluation))
     }
 
@@ -139,26 +139,26 @@ struct CallTests {
     @Test func callsBuiltinsAndBridgesTheResult() throws {
         let builtins = try cpy.module("builtins")
 
-        let absolute: PythonObject = try #require(builtins.abs)
+        let absolute: PyObject = try #require(builtins.abs)
         #expect(try absolute(-7) == 7 as Int)
 
-        let maximum: PythonObject = try #require(builtins.max)
+        let maximum: PyObject = try #require(builtins.max)
         #expect(try maximum(3, 9, 4) == 9 as Int)
 
-        let text: PythonObject = try #require(builtins.str)
+        let text: PyObject = try #require(builtins.str)
         #expect(try text(42) == "42" as String)
     }
 
     @Test func passesNilAsNone() throws {
         let builtins = try cpy.module("builtins")
-        let isNone: PythonObject = try #require(builtins.repr)
+        let isNone: PyObject = try #require(builtins.repr)
 
         #expect(try isNone(nil) == "None" as String)
     }
 
     @Test func aCallThatReturnsNoneReadsAsNil() throws {
         let sys = try cpy.module("sys")
-        let setRecursionLimit: PythonObject = try #require(sys.setrecursionlimit)
+        let setRecursionLimit: PyObject = try #require(sys.setrecursionlimit)
 
         // Unannotated: the disfavoured generic overload steps aside.
         let result = try setRecursionLimit(2000)
@@ -167,7 +167,7 @@ struct CallTests {
 
     @Test func aRaisingCallThrows() throws {
         let builtins = try cpy.module("builtins")
-        let integer: PythonObject = try #require(builtins.int)
+        let integer: PyObject = try #require(builtins.int)
 
         do {
             let _: Int = try integer("not a number")

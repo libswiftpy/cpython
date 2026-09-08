@@ -40,10 +40,10 @@ public struct PythonAPI {
     @discardableResult
     @inlinable
     public func execute(
-        _ code: PythonObject,
-        globals: PythonObject? = nil,
-        locals: PythonObject? = nil
-    ) throws(PythonError) -> PythonObject {
+        _ code: PyObject,
+        globals: PyObject? = nil,
+        locals: PyObject? = nil
+    ) throws(PythonError) -> PyObject {
         try Python.execute(code, globals: globals, locals: locals)
     }
 
@@ -56,7 +56,7 @@ public struct PythonAPI {
 
     /// The module `name`, importing it the way `import name` does.
     @inlinable
-    public func module(_ name: String) throws(PythonError) -> PythonObject {
+    public func module(_ name: String) throws(PythonError) -> PyObject {
         try Python.module(name)
     }
 
