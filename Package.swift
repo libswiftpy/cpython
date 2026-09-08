@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.3
 import Foundation
 import PackageDescription
 
@@ -51,7 +51,8 @@ let moduleSettings: [CSetting] = [
 
 let package = Package(
     name: "cpython",
-    platforms: [.macOS(.v13)],
+    // 15.4 / 18.4 are what isolated `deinit` needs.
+    platforms: [.macOS("15.4"), .iOS("18.4")],
     products: [
         .library(name: "Python", targets: ["Python"]),
         .executable(name: "pyrun", targets: ["pyrun"]),

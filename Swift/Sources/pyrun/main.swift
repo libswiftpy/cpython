@@ -3,12 +3,12 @@ import Python
 // pyrun "print('hi')"  — runs its argument, or a smoke test when given none.
 let source = CommandLine.arguments.dropFirst().joined(separator: "\n")
 
-try Python.initialize()
+// No initialize call: the first use of `cpy` starts the interpreter.
 defer { Python.finalize() }
 
 if source.isEmpty {
-    print("CPython \(Python.version)")
-    print(try Python.evaluate("sum(range(10))"))
+    print("CPython \(cpy.version)")
+    print(try cpy.evaluate("sum(range(10))"))
 } else {
-    try Python.run(source)
+    try cpy.run(source)
 }
