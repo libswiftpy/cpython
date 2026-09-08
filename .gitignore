@@ -186,6 +186,12 @@ Python/frozen_modules/MANIFEST
 AGENTS.local.md
 CLAUDE.local.md
 
+# Swift package build products
+.build/
+.swiftpm/
+Swift/.cpython-dist*/
+Swift/Sources/Python/PythonHome/lib/
+
 #### main branch only stuff below this line, things to backport go above. ####
 # main branch only: ABI files are not checked/maintained.
 Doc/data/python*.abi
