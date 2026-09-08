@@ -1,4 +1,4 @@
-# SwiftCPython
+# cpython, as a Swift package
 
 A minimal Swift package that embeds the CPython interpreter built from this
 source tree. Plain Swift/C interop through a module map — no XCFramework, no
@@ -11,9 +11,11 @@ CPython *is* the Swift package; everything it adds lives here in `Swift/`.
 | --- | --- |
 | `../Package.swift` | Package manifest: target paths, link flags |
 | `Swift/build.sh` | Builds CPython, stages `.cpython-dist` (headers, `libpython.a`) and the stdlib resource |
-| `Swift/Sources/Python/PythonHome/` | Minimal stdlib, staged by `build.sh`, shipped as a package resource |
+| `Swift/Sources/PythonEncodings/` | The `encodings` package, staged by `build.sh` as that target's resource |
+| `Swift/Sources/PythonAppleSupport/` | `_apple_support.py`, likewise |
 | `Swift/Sources/CPython/module.modulemap` | Makes `Python.h` importable from Swift as `import CPython` |
 | `Swift/Sources/Python/Python.swift` | Thin Swift wrapper: start, run, evaluate, GIL, errors |
+| `Swift/Sources/Python/PythonModule.swift` | How a target declares its builtins and search paths |
 | `Swift/Sources/Python/PythonOutput.swift` | Routes `sys.stdout`/`sys.stderr` to a Swift closure |
 | `Swift/Sources/pyrun/main.swift` | Tiny command line interpreter using the wrapper |
 
@@ -57,21 +59,21 @@ them with the manifest if linking fails on a platform not listed there.
 
 **Stdlib.** Almost everything the interpreter needs at start-up (`os`, `io`,
 `abc`, `codecs`, `site`, `stat`, `posixpath`, ...) is frozen into `libpython`.
-The only package still imported from disk is `encodings`, so the staged
-"stdlib" lives in `Sources/Python/PythonHome` and is seven files, 56 KB —
-six for `encodings`, plus `_apple_support.py`, which iOS needs to route
-`print()` through the system log:
+Only two things are still imported from disk, and each is its own target:
+`encodings` (six files, 44 KB) and `_apple_support.py`, which iOS needs to
+route `print()` through the system log.
 
 ```
 encodings/__init__.py  aliases.py  _iconv_codecs.py  utf_8.py  latin_1.py  ascii.py
 ```
 
-Add more of `Lib/` under `PythonHome/lib/python<X.Y>/` as your Python code
-needs it; extension modules such as `_ssl` are built as `.so` files in the
-CPython build tree and would go in `lib/python<X.Y>/lib-dynload/`.
-
-**Home.** `Python.initialize()` defaults to the stdlib in the package's
-resource bundle; pass `initialize(home:)` to point somewhere else.
+A further module follows the same shape: a target with the `.py` files as
+resources, declared as a ``PythonModule`` whose `searchPaths` point at its
+bundle, and passed to `Python.initialize(modules:)`. A module with a C half
+adds a second target compiling that `.c` from `Modules/` — SwiftPM builds it
+for whatever destination is being targeted, which is what iOS needs, since it
+cannot `dlopen` the `.so` files a normal CPython build produces — and declares
+it in `builtins`, which `initialize` puts in the inittab.
 
 **GIL.** `initialize()` releases the lock it is handed, and every call in goes
 through `Python.withGIL`, so the interpreter can be driven from any thread.
@@ -103,13 +105,19 @@ over `STDOUT_FILENO` instead.
 
 ## In an app bundle
 
-Nothing to do: the minimal stdlib is a **resource of the `Python` target**, so
-SwiftPM copies it into `SwiftCPython_Python.bundle` and Xcode embeds that in
-`YourApp.app/Contents/Resources`. `Python.initialize()` resolves its home
-through `Bundle.module`, which a sandboxed app can read — unlike the CPython
-checkout the package was built from, which the App Sandbox blocks (the symptom
-is a correct-looking path configuration followed by `Failed to import
-encodings module`).
+Nothing to do: each stdlib module is a **resource of its own target**, so
+SwiftPM packs them into `cpython_PythonEncodings.bundle` and
+`cpython_PythonAppleSupport.bundle`, and Xcode embeds those in
+`YourApp.app/Contents/Resources`. `Python.initialize()` puts their
+`Bundle.module` directories on `sys.path`, which a sandboxed app can read —
+unlike the CPython checkout the package was built from, which the App Sandbox
+blocks (the symptom is a correct-looking path configuration followed by
+`Failed to import encodings module`).
+
+There is no `PYTHONHOME`: a home is a single directory tree, which cannot
+describe one bundle per module. `initialize` sets `config.module_search_paths`
+outright instead — `encodings` has to be importable before initialization
+finishes, which is too early to append to `sys.path`.
 
 `libpython` itself needs no bundling; it is statically linked into the
 executable.

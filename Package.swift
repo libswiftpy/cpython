@@ -35,8 +35,22 @@ let systemLibraries: [LinkerSetting] = [
     ),
 ]
 
+// A stdlib C module compiles the way CPython compiles a builtin: against both
+// the public headers and Include/internal.
+let moduleSettings: [CSetting] = [
+    .define("Py_BUILD_CORE_BUILTIN"),
+    .unsafeFlags([
+        "-I\(distribution.path)/include/python",
+        "-I\(distribution.path)/include/python/internal",
+    ], .when(platforms: [.macOS])),
+    .unsafeFlags([
+        "-I\(packageDirectory)/Swift/.cpython-dist-iphoneos/include/python",
+        "-I\(packageDirectory)/Swift/.cpython-dist-iphoneos/include/python/internal",
+    ], .when(platforms: [.iOS])),
+]
+
 let package = Package(
-    name: "SwiftCPython",
+    name: "cpython",
     platforms: [.macOS(.v13)],
     products: [
         .library(name: "Python", targets: ["Python"]),
@@ -46,16 +60,55 @@ let package = Package(
         // The C API itself, imported through a module map.
         .systemLibrary(name: "CPython", path: "Swift/Sources/CPython"),
 
+        // How a module describes itself. Its own target so that module targets
+        // depend on this rather than on the interpreter wrapper — which also
+        // lets `Python` depend on the modules it needs to start.
+        .target(
+            name: "PythonModules",
+            dependencies: ["CPython"],
+            path: "Swift/Sources/PythonModules"
+        ),
+
+        // The stdlib the interpreter cannot start without, one target per
+        // module, named after the module it carries. SwiftPM packs each into
+        // its own resource bundle, which Xcode embeds in the app — the only
+        // place a sandboxed app can read them from. Staged by Swift/build.sh.
+        .target(
+            name: "encodings",
+            dependencies: ["PythonModules"],
+            path: "Swift/Sources/encodings",
+            resources: [.copy("encodings")]
+        ),
+        .target(
+            name: "_apple_support",
+            dependencies: ["PythonModules"],
+            path: "Swift/Sources/_apple_support",
+            resources: [.copy("_apple_support.py")]
+        ),
+
         // A thin Swift face on top of it.
         .target(
             name: "Python",
-            dependencies: ["CPython"],
+            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "zlib"],
             path: "Swift/Sources/Python",
-            // SwiftPM copies this into SwiftCPython_Python.bundle, which Xcode
-            // in turn embeds in the app — the only way a sandboxed app can
-            // reach the stdlib. Staged by Swift/build.sh.
-            resources: [.copy("PythonHome")],
             linkerSettings: systemLibraries
+        ),
+
+        // zlib: C only, so the compiled half and the Swift declaration are
+        // two targets. zipimport needs it to read a compressed zip.
+        .target(
+            name: "Czlib",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["zlibmodule.c", "_swiftpy/zlib/shim.c"],
+            publicHeadersPath: "_swiftpy/zlib",
+            cSettings: moduleSettings,
+            linkerSettings: [.linkedLibrary("z")]
+        ),
+        .target(
+            name: "zlib",
+            dependencies: ["PythonModules", "Czlib"],
+            path: "Swift/Sources/zlib"
         ),
 
         .executableTarget(name: "pyrun", dependencies: ["Python"], path: "Swift/Sources/pyrun"),
