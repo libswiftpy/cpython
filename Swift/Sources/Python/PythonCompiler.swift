@@ -29,15 +29,15 @@ public enum PythonCompiler {
         // `single` goes through the helper: CPython's own single input takes
         // one statement, while a cell is a whole block. See PythonCell.swift.
         guard mode != .single else {
-            let compileCell = try Python.helper("_compile_cell")
+            let compileCell = try PyRuntime.helper("_compile_cell")
             defer { Py_DecRef(compileCell) }
             return PyObject(
-                consuming: try Python.call(compileCell, with: [source, filename])
+                consuming: try PyRuntime.call(compileCell, with: [source, filename])
             )
         }
 
         guard let code = Py_CompileStringExFlags(source, filename, mode.start, nil, -1) else {
-            throw Python.raisedError()
+            throw PyRuntime.raisedError()
         }
         return PyObject(consuming: code)
     }

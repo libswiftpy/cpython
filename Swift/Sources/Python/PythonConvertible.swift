@@ -245,7 +245,7 @@ extension Array: PythonConvertible {
             }
             let item = try element.toPython()
             guard PyList_Append(list, item.reference) == 0 else {
-                throw Python.raisedError()
+                throw PyRuntime.raisedError()
             }
         }
         return object
@@ -293,7 +293,7 @@ extension Dictionary: PythonConvertible where Key: PythonConvertible {
             let key = try key.toPython()
             let item = try value.toPython()
             guard PyDict_SetItem(dictionary, key.reference, item.reference) == 0 else {
-                throw Python.raisedError()
+                throw PyRuntime.raisedError()
             }
         }
         return object

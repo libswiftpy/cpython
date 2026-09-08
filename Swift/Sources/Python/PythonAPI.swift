@@ -16,7 +16,7 @@ public let cpy = PythonAPI()
 public struct PythonAPI {
     init() {
         do {
-            try Python.initialize()
+            try PyRuntime.initialize()
         } catch {
             // Startup only fails when the interpreter is packaged wrong, which
             // no caller can recover from and every later call would trip over.
@@ -25,15 +25,15 @@ public struct PythonAPI {
     }
 
     @inlinable
-    public var version: String { Python.version }
+    public var version: String { PyRuntime.version }
 
     @inlinable
-    public var isInitialized: Bool { Python.isInitialized }
+    public var isInitialized: Bool { PyRuntime.isInitialized }
 
     /// Runs a block of Python source in `__main__`.
     @inlinable
     public func run(_ source: String) throws(PythonError) {
-        try Python.run(source)
+        try PyRuntime.run(source)
     }
 
     /// Runs a code object from ``PythonCompiler/compile(_:filename:mode:)``.
@@ -44,31 +44,31 @@ public struct PythonAPI {
         globals: PyObject? = nil,
         locals: PyObject? = nil
     ) throws(PythonError) -> PyObject {
-        try Python.execute(code, globals: globals, locals: locals)
+        try PyRuntime.execute(code, globals: globals, locals: locals)
     }
 
     /// Evaluates a Python expression and returns `str()` of its result.
     @discardableResult
     @inlinable
     public func evaluate(_ expression: String) throws(PythonError) -> String {
-        try Python.evaluate(expression)
+        try PyRuntime.evaluate(expression)
     }
 
     /// The module `name`, importing it the way `import name` does.
     @inlinable
     public func module(_ name: String) throws(PythonError) -> PyObject {
-        try Python.module(name)
+        try PyRuntime.module(name)
     }
 
     /// Adds a directory to `sys.path`.
     @inlinable
     public func addSearchPath(_ path: String) throws(PythonError) {
-        try Python.addSearchPath(path)
+        try PyRuntime.addSearchPath(path)
     }
 
     /// Routes `sys.stdout` and `sys.stderr` to a Swift closure.
     @inlinable
     public func redirectOutput(to hook: ((String) -> Void)?) throws(PythonError) {
-        try Python.redirectOutput(to: hook)
+        try PyRuntime.redirectOutput(to: hook)
     }
 }

@@ -1,6 +1,6 @@
 import CPython
 
-extension Python {
+extension PyRuntime {
     /// Routes everything Python writes to `sys.stdout` and `sys.stderr` —
     /// `print()`, tracebacks, `sys.stderr.write` — to a Swift closure.
     ///
@@ -15,7 +15,7 @@ extension Python {
         outputHook = hook
 
         guard hook != nil else {
-            let sys = try Python.module("sys")
+            let sys = try PyRuntime.module("sys")
             sys.stdout = sys.__stdout__
             sys.stderr = sys.__stderr__
             return
@@ -60,7 +60,7 @@ extension Python {
             ml_name: strdup("write"),
             ml_meth: { _, argument in
                 if let argument, let text = PyUnicode_AsUTF8(argument) {
-                    Python.outputHook?(String(cString: text))
+                    PyRuntime.outputHook?(String(cString: text))
                 }
                 return Py_GetConstant(UInt32(Py_CONSTANT_NONE))
             },

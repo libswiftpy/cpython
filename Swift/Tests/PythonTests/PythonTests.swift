@@ -7,36 +7,36 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct PythonTests {
-    init() throws { try Python.initialize() }
+    init() throws { try PyRuntime.initialize() }
 
     @Test func interpreterStarts() {
-        #expect(Python.isInitialized)
-        #expect(Python.version.hasPrefix("3.16"))
+        #expect(PyRuntime.isInitialized)
+        #expect(PyRuntime.version.hasPrefix("3.16"))
     }
 
     @Test func evaluatesAnExpression() throws {
-        #expect(try Python.evaluate("2 ** 10") == "1024")
+        #expect(try PyRuntime.evaluate("2 ** 10") == "1024")
     }
 
     @Test func runsStatements() throws {
-        try Python.run("greeting = 'hello from ' + 'python'")
-        #expect(try Python.evaluate("greeting") == "hello from python")
+        try PyRuntime.run("greeting = 'hello from ' + 'python'")
+        #expect(try PyRuntime.evaluate("greeting") == "hello from python")
     }
 
     @Test func decodesUTF8() throws {
-        #expect(try Python.evaluate("'héllo'.upper()") == "HÉLLO")
+        #expect(try PyRuntime.evaluate("'héllo'.upper()") == "HÉLLO")
     }
 
     @Test func redirectsOutputToSwift() throws {
         nonisolated(unsafe) var captured = ""
-        try Python.redirectOutput { captured += $0 }
-        defer { try? Python.redirectOutput(to: nil) }
+        try PyRuntime.redirectOutput { captured += $0 }
+        defer { try? PyRuntime.redirectOutput(to: nil) }
 
-        try Python.run("print('from python', 1 + 1)")
+        try PyRuntime.run("print('from python', 1 + 1)")
         #expect(captured == "from python 2\n")
 
         // stderr too, which is where tracebacks go.
-        try Python.run("import sys; sys.stderr.write('to stderr')")
+        try PyRuntime.run("import sys; sys.stderr.write('to stderr')")
         #expect(captured.hasSuffix("to stderr"))
     }
 
@@ -47,13 +47,13 @@ struct PythonTests {
 
     @Test func runsACellOfSeveralStatements() throws {
         nonisolated(unsafe) var captured = ""
-        try Python.redirectOutput { captured += $0 }
-        defer { try? Python.redirectOutput(to: nil) }
+        try PyRuntime.redirectOutput { captured += $0 }
+        defer { try? PyRuntime.redirectOutput(to: nil) }
 
         // Every expression statement echoes, which plain `single` input cannot
         // do for more than one statement.
         let cell = try PythonCompiler.compile("a = 1\na + 1\nprint('hi')\n2 + 2", mode: .single)
-        try Python.execute(cell)
+        try PyRuntime.execute(cell)
         #expect(captured == "2\nhi\n4\n")
     }
 
@@ -70,34 +70,34 @@ struct PythonTests {
 
     @Test func executesCompiledCode() throws {
         let code = try PythonCompiler.compile("2 ** 8", mode: .evaluation)
-        #expect(try Python.string(of: Python.execute(code)) == "256")
+        #expect(try PyRuntime.string(of: PyRuntime.execute(code)) == "256")
     }
 
     @Test func namespacesAreIsolatedFromMain() throws {
-        let session = try Python.namespace()
-        try Python.execute(
+        let session = try PyRuntime.namespace()
+        try PyRuntime.execute(
             PythonCompiler.compile("hidden = 'only here'"),
             globals: session
         )
 
         // Visible in its own namespace, invisible to __main__.
         let read = try PythonCompiler.compile("hidden", mode: .evaluation)
-        #expect(try Python.string(of: Python.execute(read, globals: session)) == "only here")
-        #expect(throws: PythonError.self) { try Python.execute(read) }
+        #expect(try PyRuntime.string(of: PyRuntime.execute(read, globals: session)) == "only here")
+        #expect(throws: PythonError.self) { try PyRuntime.execute(read) }
     }
 
     @Test func readsAttributesByDynamicMember() throws {
         let sys = try cpy.module("sys")
         let version = try #require(sys.version)
-        #expect(try Python.string(of: version).hasPrefix("3.16"))
+        #expect(try PyRuntime.string(of: version).hasPrefix("3.16"))
 
         // Missing reads as nil, and clears the exception it raised rather than
         // leaving it to surface at the next call.
         #expect(sys.no_such_attribute == nil)
-        #expect(try Python.evaluate("1 + 1") == "2")
+        #expect(try PyRuntime.evaluate("1 + 1") == "2")
 
         // So does None, matching pocketpy's PyObject.
-        let none = try Python.execute(
+        let none = try PyRuntime.execute(
             PythonCompiler.compile("type('X', (), {'nothing': None})()", mode: .evaluation)
         )
         #expect(none.nothing == nil)
@@ -105,10 +105,10 @@ struct PythonTests {
 
     @Test func writesAttributesByDynamicMember() throws {
         let sys = try cpy.module("sys")
-        sys.swiftpy_marker = try Python.execute(
+        sys.swiftpy_marker = try PyRuntime.execute(
             PythonCompiler.compile("'written'", mode: .evaluation)
         )
-        #expect(try Python.evaluate("__import__('sys').swiftpy_marker") == "written")
+        #expect(try PyRuntime.evaluate("__import__('sys').swiftpy_marker") == "written")
 
         // nil writes None, so a cleared attribute reads back as nil.
         sys.swiftpy_marker = nil
@@ -118,11 +118,11 @@ struct PythonTests {
     @Test func convertsStringsBothWays() throws {
         let object = try "héllo".toPython()
         #expect(String(object) == "héllo")
-        #expect(try Python.string(of: object) == "héllo")
+        #expect(try PyRuntime.string(of: object) == "héllo")
 
         // A wrong type reads as nil, and `cast` says what it wanted.
         let number = try PythonCompiler.compile("42", mode: .evaluation)
-        let notAString = try Python.execute(number)
+        let notAString = try PyRuntime.execute(number)
         #expect(String(notAString) == nil)
 
         do {
@@ -158,7 +158,7 @@ struct PythonTests {
     @Test func cellErrorsCarryATraceback() throws {
         do {
             let cell = try PythonCompiler.compile("raise ValueError('nope')", filename: "<cell>", mode: .single)
-            try Python.execute(cell)
+            try PyRuntime.execute(cell)
             Issue.record("expected the cell to raise")
         } catch {
             #expect(error.type == "ValueError")
@@ -169,7 +169,7 @@ struct PythonTests {
 
     @Test func reportsPythonExceptions() throws {
         do {
-            _ = try Python.evaluate("(_ for _ in ()).throw(ValueError('nope'))")
+            _ = try PyRuntime.evaluate("(_ for _ in ()).throw(ValueError('nope'))")
             Issue.record("expected the expression to raise")
         } catch {
             #expect(error.type == "ValueError")
