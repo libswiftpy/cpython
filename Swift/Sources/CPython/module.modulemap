@@ -1,0 +1,6 @@
+// Exposes the CPython C API to Swift as the `CPython` module. shim.h selects
+// the headers staged for the platform being built.
+module CPython [system] {
+    header "shim.h"
+    export *
+}
