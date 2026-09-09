@@ -112,7 +112,7 @@ struct CollectionConversionTests {
     }
 
     @Test func readsAndWritesAttributesAsSwiftTypes() throws {
-        let sys = try cpy.module("sys")
+        let sys = try #require(cpy.module("sys"))
 
         // No annotation: falls back to the object, not a Swift type.
         let stdout = sys.stdout
@@ -141,7 +141,7 @@ struct CallTests {
     init() throws { try PyRuntime.initialize() }
 
     @Test func callsBuiltinsAndBridgesTheResult() throws {
-        let builtins = try cpy.module("builtins")
+        let builtins = try #require(cpy.module("builtins"))
 
         let absolute: PyObject = try #require(builtins.abs)
         #expect(try absolute(-7) == 7 as Int)
@@ -154,14 +154,14 @@ struct CallTests {
     }
 
     @Test func passesNilAsNone() throws {
-        let builtins = try cpy.module("builtins")
+        let builtins = try #require(cpy.module("builtins"))
         let isNone: PyObject = try #require(builtins.repr)
 
         #expect(try isNone(nil) == "None" as String)
     }
 
     @Test func aCallThatReturnsNoneReadsAsNil() throws {
-        let sys = try cpy.module("sys")
+        let sys = try #require(cpy.module("sys"))
         let setRecursionLimit: PyObject = try #require(sys.setrecursionlimit)
 
         // Unannotated: the disfavoured generic overload steps aside.
@@ -170,7 +170,7 @@ struct CallTests {
     }
 
     @Test func aRaisingCallThrows() throws {
-        let builtins = try cpy.module("builtins")
+        let builtins = try #require(cpy.module("builtins"))
         let integer: PyObject = try #require(builtins.int)
 
         do {
