@@ -61,6 +61,10 @@ public extension PythonError {
     static func NotImplementedError(_ value: String) -> PythonError {
         PythonError(type: "NotImplementedError", value: value)
     }
+
+    static func argCountError(_ got: Int, expected: Int) -> PythonError {
+        .TypeError("expected \(expected) arguments, got \(got)")
+    }
 }
 
 extension PyRuntime {
