@@ -20,15 +20,20 @@ private let userdataOffset = MemoryLayout<CPython.PyObject>.size
 public extension PyAPI {
     /// Creates a heap type, the counterpart of pocketpy's `py_newtype`.
     ///
-    /// Instances carry one pointer of Swift userdata, which is what a binding
-    /// stores its Swift value in. `base` is either a type with no storage of
-    /// its own, or another created type -- those share the one userdata slot,
-    /// which is right: an object has one Swift value, whichever class in the
-    /// chain put it there. Anything else would land on the same bytes.
+    /// Instances carry `storage` bytes of Swift userdata, which is what a
+    /// binding keeps its Swift value in: a pointer for a class, the value
+    /// itself for a struct. Only the size varies -- the offset is fixed, so a
+    /// subclass still finds it.
+    ///
+    /// `base` is either a type with no storage of its own, or another created
+    /// type -- those share the one userdata slot, which is right: an object has
+    /// one Swift value, whichever class in the chain put it there. Anything
+    /// else would land on the same bytes.
     func newtype(
         name: String,
         base: PyType = .object,
         module: PyModule? = nil,
+        storage: Int = MemoryLayout<UnsafeMutableRawPointer>.size,
         dtor: (@convention(c) (UnsafeMutableRawPointer?) -> Void)? = nil
     ) -> PyType? {
         let baseType = UnsafeMutableRawPointer(base.reference)
@@ -52,9 +57,13 @@ public extension PyAPI {
         slots[2] = PyType_Slot(slot: Py_tp_base, pfunc: UnsafeMutableRawPointer(base.reference))
         slots[3] = PyType_Slot(slot: 0, pfunc: nil)
 
+        // A subclass must be at least as large as the base it shares the slot
+        // with, whatever it asked for itself.
+        let size = max(Int(baseType.pointee.tp_basicsize), userdataOffset + storage)
+
         var specification = PyType_Spec(
             name: strdup(name),
-            basicsize: Int32(userdataOffset + MemoryLayout<UnsafeMutableRawPointer>.size),
+            basicsize: Int32(size),
             itemsize: 0,
             flags: UInt32(UInt(Py_TPFLAGS_DEFAULT) | UInt(Py_TPFLAGS_BASETYPE)),
             slots: slots
@@ -73,6 +82,14 @@ public extension PyAPI {
             module[dynamicMember: name] = PyObject(retaining: object)
         }
         return PyType(reference: object, name: name)
+    }
+
+    /// A new instance of `type` carrying `value` in its userdata. The
+    /// counterpart of pocketpy's `newobject(_:type:out:slots:)`.
+    func newobject<Value>(_ value: Value, type: PyType) -> PyObject? {
+        guard let object = newobject(type: type) else { return nil }
+        object.userdata.assumingMemoryBound(to: Value.self).initialize(to: value)
+        return object
     }
 
     /// A new instance of `type`, with its userdata zeroed.
