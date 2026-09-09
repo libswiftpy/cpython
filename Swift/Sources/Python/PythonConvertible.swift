@@ -20,15 +20,22 @@ public protocol PythonConvertible {
     /// A requirement rather than an extension member so that a collection can
     /// call it through `Element.self as? any PythonConvertible.Type`.
     init?(_ reference: PyRef?)
+
+    /// Whether `reference` really carries a value of this type.
+    ///
+    /// Static, so a class-bound type can narrow it -- an initializer in an
+    /// `AnyObject` extension cannot assign to `self`.
+    static func isConvertible(_ reference: PyRef) -> Bool
 }
 
 public extension PythonConvertible {
+    static func isConvertible(_ reference: PyRef) -> Bool {
+        pyType.isExactType(of: reference) || pyType.isInstance(reference)
+    }
+
     /// Converts a Python object, or `nil` when it is not this type.
     init?(_ reference: PyRef?) {
-        guard let reference,
-              Self.pyType.isExactType(of: reference) || Self.pyType.isInstance(reference) else {
-            return nil
-        }
+        guard let reference, Self.isConvertible(reference) else { return nil }
         self = Self.fromPython(reference)
     }
 
@@ -121,17 +128,8 @@ extension Int: PythonConvertible {
 
     /// `bool` is a subclass of `int` in Python, so the inherited check would
     /// read `True` as `1`. Swift keeps them apart, and so does this.
-    ///
-    /// Isolation is not inferred here: this shadows a protocol *extension*
-    /// member rather than fulfilling a requirement.
-    @MainActor
-    public init?(_ reference: PyRef?) {
-        guard let reference,
-              !PyType.bool.isExactType(of: reference),
-              Int.pyType.isInstance(reference) else {
-            return nil
-        }
-        self = Int.fromPython(reference)
+    public static func isConvertible(_ reference: PyRef) -> Bool {
+        !PyType.bool.isExactType(of: reference) && pyType.isInstance(reference)
     }
 }
 
@@ -167,13 +165,8 @@ extension Double: PythonConvertible {
     }
 
     /// An int satisfies a float, the widening SwiftPy's `canCast` also allows.
-    @MainActor
-    public init?(_ reference: PyRef?) {
-        guard let reference,
-              Double.pyType.isInstance(reference) || PyType.int.isInstance(reference) else {
-            return nil
-        }
-        self = Double.fromPython(reference)
+    public static func isConvertible(_ reference: PyRef) -> Bool {
+        pyType.isInstance(reference) || PyType.int.isInstance(reference)
     }
 }
 
@@ -188,10 +181,8 @@ extension Float: PythonConvertible {
         Float(Double.fromPython(reference))
     }
 
-    @MainActor
-    public init?(_ reference: PyRef?) {
-        guard let value = Double(reference) else { return nil }
-        self = Float(value)
+    public static func isConvertible(_ reference: PyRef) -> Bool {
+        Double.isConvertible(reference)
     }
 }
 
