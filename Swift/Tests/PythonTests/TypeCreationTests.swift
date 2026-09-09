@@ -116,4 +116,16 @@ struct TypeCreationTests {
         """)
         #expect(deallocations == before + 1)
     }
+
+    @Test func aMethodGetsATextSignatureWithSelf() throws {
+        let module = try #require(cpy.newmodule("signature_type_module"))
+        let type = try #require(cpy.newtype(name: "Greeter", module: module))
+        type.function("greet(self, name: str) -> str", "Greets someone.") { _, _ in
+            PyAPI.return { "hi" }
+        }
+
+        try PyRuntime.run("import signature_type_module as m")
+        #expect(try PyRuntime.evaluate("m.Greeter.greet.__text_signature__")
+            == "($self, name: str, /)")
+    }
 }

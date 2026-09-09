@@ -109,7 +109,11 @@ public extension PyType {
             UnsafeMutableRawPointer(reference).assumingMemoryBound(to: PyTypeObject.self),
             methodTable(
                 name: name,
-                documentation: [signature, docstring].compactMap { $0 }.joined(separator: "\n\n"),
+                documentation: clinicDocumentation(
+                    signature: signature,
+                    docstring: docstring,
+                    receiver: "$self"
+                ),
                 function: block
             )
         ) else {

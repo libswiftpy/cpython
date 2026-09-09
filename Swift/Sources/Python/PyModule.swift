@@ -85,9 +85,9 @@ public struct PyModule: @MainActor PyReferencing {
     ///
     ///     module.def("add(a: int, b: int) -> int") { _, args in ... }
     ///
-    /// CPython has no signature parser, so only the name is read out of it and
-    /// the rest becomes the first line of `__doc__` -- which is what the
-    /// argument clinic does for signatures it cannot express either.
+    /// The name goes on the function; the rest becomes a `__text_signature__`
+    /// through the argument clinic's docstring convention. See
+    /// ``clinicDocumentation(signature:docstring:receiver:)``.
     public func def(
         _ signature: String,
         docstring: String? = nil,
@@ -95,9 +95,11 @@ public struct PyModule: @MainActor PyReferencing {
     ) {
         let name = String(signature.prefix { $0 != "(" })
             .trimmingCharacters(in: .whitespaces)
-        let documentation = [signature, docstring]
-            .compactMap { $0 }
-            .joined(separator: "\n\n")
+        let documentation = clinicDocumentation(
+            signature: signature,
+            docstring: docstring,
+            receiver: "$module"
+        )
 
         // CPython keeps referring to the method table for as long as the
         // function lives, so it is allocated once and never freed.

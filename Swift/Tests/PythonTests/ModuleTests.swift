@@ -83,14 +83,18 @@ struct ModuleTests {
         #expect(try PyRuntime.evaluate("nothing is None") == "True")
     }
 
-    @Test func theSignatureBecomesTheDocstring() throws {
+    @Test func theSignatureBecomesATextSignature() throws {
         let module = try #require(cpy.newmodule("documented_module"))
         module.def("greet(name: str) -> str", docstring: "Greets someone.") { _, _ in
             PyAPI.return { "hi" }
         }
+        try PyRuntime.run("import documented_module; greet = documented_module.greet")
 
-        let documentation = try PyRuntime.evaluate("__import__('documented_module').greet.__doc__")
-        #expect(documentation.contains("greet(name: str) -> str"))
-        #expect(documentation.contains("Greets someone."))
+        // A builtin has no __dict__, so __annotations__ cannot be attached --
+        // the text signature is where the types survive.
+        #expect(try PyRuntime.evaluate("greet.__text_signature__")
+            == "($module, name: str, /)")
+        #expect(try PyRuntime.evaluate("greet.__doc__").contains("Greets someone."))
+        #expect(try PyRuntime.evaluate("hasattr(greet, '__annotations__')") == "False")
     }
 }
