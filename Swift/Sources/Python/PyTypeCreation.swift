@@ -16,16 +16,25 @@ public extension PyAPI {
     /// Creates a heap type, the counterpart of pocketpy's `py_newtype`.
     ///
     /// Instances carry one pointer of Swift userdata, which is what a binding
-    /// stores its Swift value in. The base is always `object`: the userdata
-    /// sits at a fixed offset, which only holds when nothing else is below it.
+    /// stores its Swift value in. `base` may only be a type that adds no
+    /// storage of its own -- the userdata sits at a fixed offset, so anything
+    /// below it would land on the same bytes.
     func newtype(
         name: String,
+        base: PyType = .object,
         module: PyModule? = nil,
         dtor: (@convention(c) (UnsafeMutableRawPointer?) -> Void)? = nil
     ) -> PyType? {
+        let baseType = UnsafeMutableRawPointer(base.reference)
+            .assumingMemoryBound(to: PyTypeObject.self)
+        precondition(
+            baseType.pointee.tp_basicsize <= userdataOffset,
+            "\(name) cannot be based on \(base.name), which has storage of its own"
+        )
+
         // CPython keeps pointing at the name and the slots for as long as the
         // type lives, so both are allocated once and never freed.
-        let slots = UnsafeMutablePointer<PyType_Slot>.allocate(capacity: 3)
+        let slots = UnsafeMutablePointer<PyType_Slot>.allocate(capacity: 4)
         slots[0] = PyType_Slot(slot: Py_tp_dealloc, pfunc: unsafeBitCast(deallocate, to: UnsafeMutableRawPointer.self))
         // Bound to a C function type first: taken bare, the imported function
         // is a thick Swift value and does not fit a slot.
@@ -33,7 +42,8 @@ public extension PyAPI {
             UnsafeMutablePointer<PyTypeObject>?, PyRef?, PyRef?
         ) -> PyRef? = PyType_GenericNew
         slots[1] = PyType_Slot(slot: Py_tp_new, pfunc: unsafeBitCast(genericNew, to: UnsafeMutableRawPointer.self))
-        slots[2] = PyType_Slot(slot: 0, pfunc: nil)
+        slots[2] = PyType_Slot(slot: Py_tp_base, pfunc: UnsafeMutableRawPointer(base.reference))
+        slots[3] = PyType_Slot(slot: 0, pfunc: nil)
 
         var specification = PyType_Spec(
             name: strdup(name),
@@ -78,7 +88,7 @@ public extension PyReferencing {
     }
 
     /// Reads the stored value, which only makes sense on an object of a type
-    /// ``PyAPI/newtype(name:module:dtor:)`` made.
+    /// ``PyAPI/newtype(name:base:module:dtor:)`` made.
     func toUserdata<Value>(as type: Value.Type = Value.self) -> Value {
         userdata.assumingMemoryBound(to: Value.self).pointee
     }

@@ -36,6 +36,18 @@ struct TypeCreationTests {
         #expect(try PyRuntime.evaluate("type_name") == "Counter")
     }
 
+    /// The base a `@Scriptable` binding names, which is `object` unless it
+    /// says otherwise.
+    @Test func aTypeInheritsFromItsBase() throws {
+        let module = try #require(cpy.newmodule("base_module"))
+        _ = try #require(cpy.newtype(name: "Marker", module: module))
+        _ = try #require(cpy.newtype(name: "Derived", base: .object, module: module))
+
+        try PyRuntime.run("import base_module")
+        #expect(try PyRuntime.evaluate("issubclass(base_module.Derived, object)") == "True")
+        #expect(try PyRuntime.evaluate("issubclass(base_module.Derived, base_module.Marker)") == "False")
+    }
+
     @Test func aBoundMethodReceivesItsInstance() throws {
         let module = try #require(cpy.newmodule("method_module"))
         let type = try #require(cpy.newtype(name: "Doubler", module: module))
