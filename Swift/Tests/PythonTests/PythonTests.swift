@@ -138,7 +138,7 @@ struct PythonTests {
         let box = try "first".toPython()
         let held = box.reference
 
-        try "second".toPython(box)
+        "second".toPython(box)
         #expect(String(box) == "second")
 
         // The old object is released, not rewritten: only the box moved.

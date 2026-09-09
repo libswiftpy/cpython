@@ -48,8 +48,12 @@ public extension PythonConvertible {
     ///
     /// pocketpy writes into a caller's slot; here the box is repointed at a new
     /// object instead, because a CPython object cannot change its type in place.
-    func toPython(_ object: PyObject) throws(PythonError) {
-        object.assign(try toPython())
+    /// Writes into an existing box. Does not throw, the way pocketpy's
+    /// out-parameter form cannot: a value that will not convert leaves the box
+    /// untouched.
+    func toPython(_ object: PyObject) {
+        guard let value = try? toPython() else { return }
+        object.assign(value)
     }
 
     /// Converts, or throws a `TypeError` naming what was expected.

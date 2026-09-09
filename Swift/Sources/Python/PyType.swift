@@ -73,3 +73,13 @@ public extension PyObject {
         self.init(retaining: type.reference)
     }
 }
+
+@MainActor
+public extension PyObject {
+    /// Builds an object by writing into it, the shape pocketpy's
+    /// out-parameter initializers gave the bindings.
+    convenience init(_ build: (PyObject) -> Void) {
+        self.init(consuming: Py_GetConstant(UInt32(Py_CONSTANT_NONE)))
+        build(self)
+    }
+}
