@@ -42,16 +42,7 @@ public extension PyRuntime {
     /// request; a real bridge would dispatch on the object's type.
     @MainActor
     private static func perform(_ request: PyObject) async throws(PythonError) -> PyObject {
-        // Int and Double separately: unlike SwiftPy, this package does not
-        // accept a Python int where a float is asked for.
-        let seconds: Double? = if let value: Double = request.seconds {
-            value
-        } else if let value: Int = request.seconds {
-            Double(value)
-        } else {
-            nil
-        }
-        guard let seconds else {
+        guard let seconds: Double = request.seconds else {
             throw .TypeError("awaited a \(request.typeName), which Swift cannot run")
         }
         try? await Task.sleep(for: .seconds(seconds))
