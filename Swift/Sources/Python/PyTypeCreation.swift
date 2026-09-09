@@ -180,14 +180,18 @@ private func destructor(
 /// destructor, then free the object the way a heap type must.
 private let deallocate: @convention(c) (PyRef?) -> Void = { object in
     guard let object else { return }
-    nonisolated(unsafe) let type = object.pointee.ob_type
-    // Pointers are not Sendable, but this only ever runs on the thread that
-    // holds the GIL -- the same one the main actor is pinned to.
-    nonisolated(unsafe) let payload = UnsafeMutableRawPointer(object)
-        .advanced(by: userdataOffset)
+    let type = object.pointee.ob_type
+    let crossing = GILBound(type)
+    let payload = GILBound(
+        UnsafeMutableRawPointer(object)
+            .advanced(by: userdataOffset)
+            .assumingMemoryBound(to: UInt8.self)
+    )
 
+    // assumeIsolated is the guard rail, not ceremony: a decref from another
+    // thread traps here instead of corrupting the interpreter.
     MainActor.assumeIsolated {
-        destructor(of: type)?(payload)
+        destructor(of: crossing.pointer)?(UnsafeMutableRawPointer(payload.pointer))
     }
 
     if let type,
