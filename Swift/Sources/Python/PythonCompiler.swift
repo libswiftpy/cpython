@@ -48,3 +48,7 @@ public enum PythonCompiler {
         return PyObject(consuming: code)
     }
 }
+
+/// The name SwiftPy uses for a compile mode. The cases are the same, so the
+/// shared code needs no mapping.
+public typealias CompileMode = PythonCompiler.Mode

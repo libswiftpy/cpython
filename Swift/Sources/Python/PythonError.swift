@@ -84,3 +84,36 @@ extension PyRuntime {
             ?? PyDict_GetItemString(builtins, "RuntimeError")
     }
 }
+
+// MARK: - As a Python object
+
+extension PythonError: PythonConvertible {
+    @MainActor
+    public static var pyType: PyType { .builtin("BaseException") }
+
+    public func toPython() throws(PythonError) -> PyObject {
+        guard let exceptionType = PyRuntime.exceptionType(named: type),
+              let message = PyUnicode_FromString(value) else {
+            throw .SystemError("could not build a \(type)")
+        }
+        defer { Py_DecRef(message) }
+
+        guard let object = PyObject_CallOneArg(exceptionType, message) else {
+            PyErr_Clear()
+            throw .SystemError("could not build a \(type)")
+        }
+        return PyObject(consuming: object)
+    }
+
+    public static func fromPython(_ reference: PyRef) -> PythonError {
+        let name = PyRuntime.typeName(of: reference)
+        // `str(exception)` is the message, the same thing pocketpy reads out of
+        // `args[0]`.
+        guard let text = PyObject_Str(reference) else {
+            PyErr_Clear()
+            return PythonError(type: name, value: "")
+        }
+        defer { Py_DecRef(text) }
+        return PythonError(type: name, value: String(text) ?? "")
+    }
+}

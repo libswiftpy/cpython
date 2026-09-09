@@ -118,6 +118,12 @@ public struct PyModule: @MainActor PyReferencing {
         defer { Py_DecRef(bound) }
         set(name, to: bound)
     }
+
+    /// The async machinery is not ported yet, so this binds an ordinary
+    /// function: what it returns is whatever the binding hands back.
+    public func asyncDef(_ signature: String, docstring: String? = nil, function: PyAPI.CFunction) {
+        def(signature, docstring: docstring, function: function)
+    }
 }
 
 extension PyModule: PythonConvertible {

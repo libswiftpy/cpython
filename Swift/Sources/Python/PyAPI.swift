@@ -23,6 +23,11 @@ public struct PyAPI {
     /// answers with a Bool, so only the shape of the two differs.
     public typealias CFunction = @convention(c) (PyRef?, PyRef?) -> PyRef?
 
+    /// The spellings SwiftPy's bindings use for a reference and what it points
+    /// at. pocketpy names a tagged value here; CPython an object header.
+    public typealias Value = CPython.PyObject
+    public typealias Reference = PyRef
+
     init() {
         do {
             try PyRuntime.initialize()
@@ -128,6 +133,31 @@ public extension PyAPI {
             }
         }
         return result?.pointer
+    }
+
+    /// `type(object)`.
+    func typeof(_ reference: PyRef?) -> PyType {
+        guard let reference, let type = PyObject_Type(reference) else { return .object }
+        // Borrowed from here on: the object keeps its type alive.
+        Py_DecRef(type)
+        return PyType(reference: type, name: PyRuntime.typeName(of: reference))
+    }
+
+    /// The type an object already is, for when it is one.
+    func totype(_ reference: PyRef?) -> PyType {
+        guard let reference else { return .object }
+        let name = PyObject_GetAttrString(reference, "__name__")
+        defer { name.map(Py_DecRef) }
+        return PyType(reference: reference, name: name.flatMap { String($0) } ?? "type")
+    }
+
+    /// `repr(object)`.
+    func repr(_ reference: PyRef?) throws(PythonError) -> String {
+        guard let reference, let text = PyObject_Repr(reference) else {
+            throw .TypeError("repr() needs an object")
+        }
+        defer { Py_DecRef(text) }
+        return String(text) ?? ""
     }
 
     /// Sets `error` as the raised exception.
