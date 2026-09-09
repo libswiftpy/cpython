@@ -153,23 +153,41 @@ private func methodTable(
     return method
 }
 
+/// The destructor registered for `type` or, when Python subclassed it, for
+/// the ancestor that was created from Swift.
+///
+/// `tp_base` is the base that decides an instance's layout, and a created type
+/// always is that for its subclasses -- it is the one that added storage, and
+/// CPython refuses a second base that wants its own. Walking it is pointer
+/// chasing: no allocation, which is what a destructor can afford.
+@MainActor
+private func destructor(
+    of type: UnsafeMutablePointer<PyTypeObject>?
+) -> (@convention(c) (UnsafeMutableRawPointer?) -> Void)? {
+    var current = type
+    while let candidate = current {
+        let object = UnsafeMutableRawPointer(candidate)
+            .assumingMemoryBound(to: CPython.PyObject.self)
+        if let dtor = destructors[object] {
+            return dtor
+        }
+        current = candidate.pointee.tp_base
+    }
+    return nil
+}
+
 /// `tp_dealloc` for every created type: hand the Swift value to that type's
 /// destructor, then free the object the way a heap type must.
 private let deallocate: @convention(c) (PyRef?) -> Void = { object in
     guard let object else { return }
-    let type = object.pointee.ob_type
+    nonisolated(unsafe) let type = object.pointee.ob_type
     // Pointers are not Sendable, but this only ever runs on the thread that
     // holds the GIL -- the same one the main actor is pinned to.
-    nonisolated(unsafe) let typeObject = type.map {
-        UnsafeMutableRawPointer($0).assumingMemoryBound(to: CPython.PyObject.self)
-    }
     nonisolated(unsafe) let payload = UnsafeMutableRawPointer(object)
         .advanced(by: userdataOffset)
 
     MainActor.assumeIsolated {
-        if let typeObject, let dtor = destructors[typeObject] {
-            dtor(payload)
-        }
+        destructor(of: type)?(payload)
     }
 
     if let type,
@@ -179,5 +197,5 @@ private let deallocate: @convention(c) (PyRef?) -> Void = { object in
         )
     }
     // A heap type is kept alive by its instances.
-    Py_DecRef(typeObject)
+    Py_DecRef(type.map { UnsafeMutableRawPointer($0).assumingMemoryBound(to: CPython.PyObject.self) })
 }

@@ -100,4 +100,20 @@ struct TypeCreationTests {
         """)
         #expect(try PyRuntime.evaluate("message") == "boom")
     }
+
+    @Test func theDestructorRunsForAPythonSubclassToo() throws {
+        let module = try #require(cpy.newmodule("subclass_module"))
+        let created = cpy.newtype(name: "Base", module: module, dtor: countDeallocation)
+        _ = try #require(created)
+
+        let before = deallocations
+        try PyRuntime.run("""
+        import subclass_module
+        class Derived(subclass_module.Base):
+            pass
+        derived = Derived()
+        del derived
+        """)
+        #expect(deallocations == before + 1)
+    }
 }
