@@ -62,6 +62,14 @@ public extension PythonError {
         PythonError(type: "NotImplementedError", value: value)
     }
 
+    static func KeyError(_ value: String) -> PythonError {
+        PythonError(type: "KeyError", value: value)
+    }
+
+    static func StopIteration(_ value: String) -> PythonError {
+        PythonError(type: "StopIteration", value: value)
+    }
+
     static func argCountError(_ got: Int, expected: Int) -> PythonError {
         .TypeError("expected \(expected) arguments, got \(got)")
     }

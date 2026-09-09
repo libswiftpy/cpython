@@ -4,7 +4,7 @@ import CPython
 ///
 /// Not isolated as a whole: it is a pointer and a name, so comparing two is
 /// just data. Only what calls into CPython belongs on the main actor.
-public struct PyType: Equatable {
+public struct PyType: Hashable {
     /// Borrowed: the builtins dict keeps its types for the process lifetime.
     let reference: PyRef
 

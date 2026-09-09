@@ -8,7 +8,11 @@ import Foundation
 /// Registering extra builtin modules has to happen before CPython starts, so
 /// call ``Python/initialize(modules:)`` yourself before touching this.
 @MainActor
-public let cpy = PyAPI()
+public let py = PyAPI()
+
+/// The older spelling, kept so existing call sites still read.
+@MainActor
+public let cpy = py
 
 /// The embedded interpreter as a value: creating it starts CPython, the way
 /// SwiftPy's `py` does for pocketpy.
@@ -136,6 +140,13 @@ public extension PyAPI {
 /// the host's own types. Registered once at startup.
 @MainActor
 public enum PyBridge {
+    /// Extra conversions `cast` accepts, keyed by the type being cast *to*:
+    /// a `Path` is accepted for a `str`, a `View` for an `AnyView`.
+    public static var implicitCasts: [PyType: [PyType]] = [:]
+
+    /// How to read a `String` out of one of those stand-in types.
+    public static var stringConversions: [PyType: (PyRef) -> String] = [:]
+
     /// How to box a returned value that is not ``PythonConvertible``.
     public static var box: ((Any) -> PyObject?)?
 }
