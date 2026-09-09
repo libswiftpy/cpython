@@ -93,25 +93,25 @@ public extension PyAPI {
     nonisolated static func `return`(
         _ body: @MainActor () throws -> (any PythonConvertible)?
     ) -> PyRef? {
-        nonisolated(unsafe) var result: PyRef?
+        var result: GILBound<CPython.PyObject>?
         MainActor.assumeIsolated {
             do {
                 guard let value = try body() else {
-                    result = Py_GetConstant(UInt32(Py_CONSTANT_NONE))
+                    result = GILBound(Py_GetConstant(UInt32(Py_CONSTANT_NONE)))
                     return
                 }
                 // The caller owns what it returns, and the box would release
                 // this on the way out.
                 let object = try value.toPython()
                 Py_IncRef(object.reference)
-                result = object.reference
+                result = GILBound(object.reference)
             } catch let error as PythonError {
                 raise(error)
             } catch {
                 raise(.RuntimeError("\(error)"))
             }
         }
-        return result
+        return result?.pointer
     }
 
     /// Sets `error` as the raised exception.
