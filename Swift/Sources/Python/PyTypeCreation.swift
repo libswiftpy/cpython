@@ -147,6 +147,71 @@ public extension PyType {
         self.function("\(name)(self)", block: function)
     }
 
+    /// Binds a property. Both halves are ordinary bindings, so they reach the
+    /// descriptor through trampolines: a getset getter is handed `(self,
+    /// closure)` and a setter `(self, value, closure)`, neither of which is the
+    /// `(self, args)` a binding reads.
+    func property(
+        _ name: String,
+        _ docstring: String? = nil,
+        getter: PyAPI.CFunction,
+        setter: PyAPI.CFunction? = nil
+    ) {
+        let definition = getSetTable(
+            name: name,
+            documentation: docstring,
+            getter: getter,
+            setter: setter
+        )
+        guard let descriptor = PyDescr_NewGetSet(
+            UnsafeMutableRawPointer(reference).assumingMemoryBound(to: PyTypeObject.self),
+            definition
+        ) else {
+            PyErr_Clear()
+            return
+        }
+        defer { Py_DecRef(descriptor) }
+        set(name, to: descriptor)
+    }
+
+    /// Binds a static method: a plain function in the type's dict, wrapped so
+    /// Python does not hand it a receiver.
+    func staticmethod(
+        _ signature: String,
+        _ docstring: String? = nil,
+        function: PyAPI.CFunction
+    ) {
+        let name = String(signature.prefix { $0 != "(" })
+            .trimmingCharacters(in: .whitespaces)
+
+        guard let callable = PyCFunction_NewEx(
+            methodTable(
+                name: name,
+                documentation: clinicDocumentation(
+                    signature: signature,
+                    docstring: docstring,
+                    receiver: "$type"
+                ),
+                function: function
+            ),
+            nil,
+            nil
+        ) else {
+            PyErr_Clear()
+            return
+        }
+        defer { Py_DecRef(callable) }
+
+        // Without this the function would still bind a receiver when it is
+        // reached through an instance.
+        guard let wrapped = PyStaticMethod_New(callable) else {
+            PyErr_Clear()
+            return
+        }
+        defer { Py_DecRef(wrapped) }
+        set(name, to: wrapped)
+    }
+
     private func set(_ name: String, to value: PyRef) {
         if PyObject_SetAttrString(reference, name, value) != 0 {
             PyErr_Clear()
@@ -156,6 +221,69 @@ public extension PyType {
         // attribute caches that would otherwise keep serving the old value.
         PyType_Modified(UnsafeMutableRawPointer(reference).assumingMemoryBound(to: PyTypeObject.self))
     }
+}
+
+/// Allocated once per binding and never freed: CPython keeps referring to it
+/// for as long as the descriptor lives.
+private struct PropertyBinding {
+    let getter: PyAPI.CFunction
+    let setter: PyAPI.CFunction?
+}
+
+/// Reshapes a getset call into the `(self, args)` a binding reads. The pair it
+/// forwards to travels in the descriptor's own `closure` field, which is the
+/// only place a `@convention(c)` slot can pick anything up.
+private let propertyGetter: @convention(c) (
+    PyRef?, UnsafeMutableRawPointer?
+) -> PyRef? = { object, closure in
+    guard let closure else { return nil }
+    return closure.assumingMemoryBound(to: PropertyBinding.self).pointee.getter(object, nil)
+}
+
+private let propertySetter: @convention(c) (
+    PyRef?, PyRef?, UnsafeMutableRawPointer?
+) -> Int32 = { object, value, closure in
+    guard let closure,
+          let setter = closure.assumingMemoryBound(to: PropertyBinding.self).pointee.setter
+    else { return -1 }
+
+    // A deletion arrives as a nil value, which no binding takes.
+    guard let value, let arguments = PyTuple_New(1) else {
+        MainActor.assumeIsolated {
+            PyAPI.raise(.TypeError("cannot delete this attribute"))
+        }
+        return -1
+    }
+    defer { Py_DecRef(arguments) }
+
+    // PyTuple_SetItem steals the reference it is given.
+    Py_IncRef(value)
+    PyTuple_SetItem(arguments, 0, value)
+
+    guard let result = setter(object, arguments) else { return -1 }
+    Py_DecRef(result)
+    return 0
+}
+
+/// Allocated once per binding and never freed, the way the method table is.
+private func getSetTable(
+    name: String,
+    documentation: String?,
+    getter: @escaping PyAPI.CFunction,
+    setter: PyAPI.CFunction?
+) -> UnsafeMutablePointer<PyGetSetDef> {
+    let binding = UnsafeMutablePointer<PropertyBinding>.allocate(capacity: 1)
+    binding.initialize(to: PropertyBinding(getter: getter, setter: setter))
+
+    let definition = UnsafeMutablePointer<PyGetSetDef>.allocate(capacity: 1)
+    definition.initialize(to: PyGetSetDef(
+        name: strdup(name),
+        get: propertyGetter,
+        set: setter == nil ? nil : propertySetter,
+        doc: documentation.map { strdup($0) },
+        closure: UnsafeMutableRawPointer(binding)
+    ))
+    return definition
 }
 
 /// Allocated once per binding and never freed: CPython keeps referring to it
