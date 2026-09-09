@@ -121,6 +121,13 @@ public extension PyType {
         let name = String(signature.prefix { $0 != "(" })
             .trimmingCharacters(in: .whitespaces)
 
+        // Python treats __new__ as an implicit staticmethod: it is called with
+        // the class, and a method descriptor for this type would refuse one.
+        if name == "__new__" {
+            staticmethod(signature, docstring, function: block)
+            return
+        }
+
         // A descriptor rather than a plain function: that is what binds `self`
         // when the method is reached through an instance.
         guard let descriptor = PyDescr_NewMethod(

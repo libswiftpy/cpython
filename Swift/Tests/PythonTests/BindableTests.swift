@@ -25,6 +25,18 @@ final class Thing: PythonBindable {
     }
 }
 
+/// Binds `__new__` the way the `@Scriptable` macro does.
+@MainActor
+final class Counted: PythonBindable {
+    public var _pythonCache = PythonBindingCache()
+
+    @MainActor static let pyType: PyType = .make("Counted") { type in
+        type.function("__new__(cls, *args, **kwargs)") {
+            __new__(PyArguments(method: $0, $1))
+        }
+    }
+}
+
 @Suite(.serialized)
 @MainActor
 struct BindableTests {
@@ -79,5 +91,24 @@ struct BindableTests {
         let empty = try #require(cpy.main.empty)
         #expect(Thing(empty.reference) == nil)
         #expect(throws: PythonError.self) { try Thing.cast(empty.reference) }
+    }
+
+    /// `Path()` from Python: the macro binds `__new__`, and Python calls it
+    /// with the class, not with an instance.
+    @Test func pythonCanConstructABoundType() throws {
+        let module = try #require(cpy.newmodule("construct_module"))
+        module[dynamicMember: "Counted"] = Counted.pyType.object
+
+        try PyRuntime.run("""
+        import construct_module
+        made = construct_module.Counted()
+        name = type(made).__name__
+        """)
+        #expect(try PyRuntime.evaluate("name") == "Counted")
+
+        // The instance Python built carries no Swift value yet, so it does not
+        // read back as one.
+        let made: Python.PyObject = try #require(cpy.main.made)
+        #expect(Counted(made.reference) == nil)
     }
 }

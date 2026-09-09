@@ -21,6 +21,11 @@ public struct PyType: Equatable {
         return PyType(reference: type, name: name)
     }
 
+    /// The type as an object, which is what putting it in a module, or writing
+    /// onto it, takes.
+    @MainActor
+    public var object: PyObject { PyObject(retaining: reference) }
+
     /// `isinstance(object, self)`.
     @MainActor
     public func isInstance(_ object: some PyReferencing) -> Bool {
@@ -58,4 +63,13 @@ public extension PyType {
         Py_DecRef(type)
         return PyType(reference: type, name: "module")
     }()
+}
+
+@MainActor
+public extension PyObject {
+    /// A type as an object. Not failable, which is what a binding writing onto
+    /// its own type relies on.
+    convenience init(_ type: PyType) {
+        self.init(retaining: type.reference)
+    }
 }

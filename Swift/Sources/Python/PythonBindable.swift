@@ -56,6 +56,17 @@ public extension PythonBindable {
         return Unmanaged<Self>.fromOpaque(pointer).takeUnretainedValue()
     }
 
+    /// `__new__(cls, *args, **kwargs)`: allocates an instance of the class it
+    /// was called on, which is a subclass as often as it is `Self`.
+    static func __new__(_ arguments: PyArguments) -> PyReturn {
+        PyAPI.return {
+            guard let cls = arguments[0] else {
+                throw PythonError.TypeError("__new__ takes a class")
+            }
+            return cpy.newobject(type: PyType(reference: cls, name: pyType.name))
+        }
+    }
+
     /// An instance Python made on its own carries no Swift value yet, and
     /// reading one out of it would dereference nothing.
     static func isConvertible(_ reference: PyRef) -> Bool {
