@@ -90,9 +90,10 @@ public extension PyAPI {
     ///
     /// The body runs on the main actor: CPython only ever calls back on the
     /// thread that holds the GIL, which is the one the interpreter started on.
-    nonisolated static func `return`(
-        _ body: @MainActor () throws -> (any PythonConvertible)?
-    ) -> PyRef? {
+    /// Takes `Any?` rather than a convertible: a bound getter reads whatever
+    /// the Swift property holds, and what is not convertible goes to the host's
+    /// box.
+    nonisolated static func `return`(_ body: @MainActor () throws -> Any?) -> PyRef? {
         var result: GILBound<CPython.PyObject>?
         MainActor.assumeIsolated {
             do {
@@ -100,9 +101,20 @@ public extension PyAPI {
                     result = GILBound(Py_GetConstant(UInt32(Py_CONSTANT_NONE)))
                     return
                 }
+
+                let object: PyObject
+                switch value {
+                case let convertible as PythonConvertible:
+                    object = try convertible.toPython()
+                default:
+                    guard let boxed = PyBridge.box?(value) else {
+                        throw PythonError.TypeError("Cannot convert \(type(of: value)) to Python")
+                    }
+                    object = boxed
+                }
+
                 // The caller owns what it returns, and the box would release
                 // this on the way out.
-                let object = try value.toPython()
                 Py_IncRef(object.reference)
                 result = GILBound(object.reference)
             } catch let error as PythonError {
@@ -118,4 +130,12 @@ public extension PyAPI {
     static func raise(_ error: PythonError) {
         PyErr_SetString(PyRuntime.exceptionType(named: error.type), error.value)
     }
+}
+
+/// What the layer above plugs in, so this module needs to know nothing about
+/// the host's own types. Registered once at startup.
+@MainActor
+public enum PyBridge {
+    /// How to box a returned value that is not ``PythonConvertible``.
+    public static var box: ((Any) -> PyObject?)?
 }
