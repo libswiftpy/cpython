@@ -57,6 +57,10 @@ public extension PythonError {
     static func TypeError(_ value: String) -> PythonError {
         PythonError(type: "TypeError", value: value)
     }
+
+    static func NotImplementedError(_ value: String) -> PythonError {
+        PythonError(type: "NotImplementedError", value: value)
+    }
 }
 
 extension PyRuntime {
