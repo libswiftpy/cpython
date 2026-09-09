@@ -1,9 +1,16 @@
 import CPython
 import Foundation
 
+/// Anything exposed to Python that can be handed back into an object, spelled
+/// the same as SwiftPy's. The shared binding code writes through it.
+@MainActor
+public protocol PythonValueBindable: PythonConvertible {
+    func storeInPython(_ reference: PyRef?)
+}
+
 /// A Swift class exposed to Python, spelled the same as SwiftPy's.
 @MainActor
-public protocol PythonBindable: AnyObject, PythonConvertible {
+public protocol PythonBindable: AnyObject, PythonValueBindable {
     var _pythonCache: PythonBindingCache { get set }
 }
 
