@@ -46,4 +46,16 @@ public extension PyType {
     static let list = PyType.builtin("list")
     static let dict = PyType.builtin("dict")
     static let object = PyType.builtin("object")
+
+    /// `type(sys)`. Not a builtin name, so it is read off a real module.
+    static let module: PyType = {
+        guard let sys = PyImport_ImportModule("sys"),
+              let type = PyObject_Type(sys) else {
+            preconditionFailure("sys is missing; is the interpreter running?")
+        }
+        // Both are kept by the interpreter for the process lifetime.
+        Py_DecRef(sys)
+        Py_DecRef(type)
+        return PyType(reference: type, name: "module")
+    }()
 }

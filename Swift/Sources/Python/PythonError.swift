@@ -58,3 +58,13 @@ public extension PythonError {
         PythonError(type: "TypeError", value: value)
     }
 }
+
+extension PyRuntime {
+    /// The builtin exception type of that name, falling back to `RuntimeError`
+    /// for one this build does not have.
+    static func exceptionType(named name: String) -> PyRef? {
+        guard let builtins = PyEval_GetBuiltins() else { return nil }
+        return PyDict_GetItemString(builtins, name)
+            ?? PyDict_GetItemString(builtins, "RuntimeError")
+    }
+}

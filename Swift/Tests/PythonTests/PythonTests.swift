@@ -87,7 +87,7 @@ struct PythonTests {
     }
 
     @Test func readsAttributesByDynamicMember() throws {
-        let sys = try cpy.module("sys")
+        let sys = try #require(cpy.module("sys"))
         let version = try #require(sys.version)
         #expect(try PyRuntime.string(of: version).hasPrefix("3.16"))
 
@@ -104,7 +104,7 @@ struct PythonTests {
     }
 
     @Test func writesAttributesByDynamicMember() throws {
-        let sys = try cpy.module("sys")
+        let sys = try #require(cpy.module("sys"))
         sys.swiftpy_marker = try PyRuntime.execute(
             PythonCompiler.compile("'written'", mode: .evaluation)
         )

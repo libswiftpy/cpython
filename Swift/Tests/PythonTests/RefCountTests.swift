@@ -8,7 +8,7 @@ struct RefCountTests {
     init() throws { try PyRuntime.initialize() }
 
     @Test func dynamicMemberLookupDoesNotLeak() throws {
-        let sys = try cpy.module("sys")
+        let sys = PyObject(retaining: try #require(cpy.module("sys")).reference)
         let before = Py_REFCNT(sys.reference)
 
         for _ in 0..<1000 {
@@ -20,7 +20,7 @@ struct RefCountTests {
     }
 
     @Test func attributeItselfIsReleased() throws {
-        let sys = try cpy.module("sys")
+        let sys = PyObject(retaining: try #require(cpy.module("sys")).reference)
         let version = try #require(sys.version)
         let before = Py_REFCNT(version.reference)
 
