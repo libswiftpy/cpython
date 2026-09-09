@@ -78,8 +78,19 @@ extension PyRuntime {
         # CPython's own `single` input rejects more than one statement, but
         # the compiler is happy to build single-mode bytecode from Interactive.
         def _compile_cell(source, filename):
-            tree = compile(source, filename, 'exec', 0x0400)
+            tree = compile(source, filename, 'exec', 0x0400 | 0x2000)
             return compile(_ast.Interactive(body=tree.body), filename, 'single')
+
+        class _SwiftAwaitable:
+            # Yields itself to the Swift driver, which sends the result back in.
+            def __init__(self, seconds):
+                self.seconds = seconds
+
+            def __await__(self):
+                return (yield self)
+
+        def sleep(seconds):
+            return _SwiftAwaitable(seconds)
 
         def _format_exception(exception):
             lines = ['Traceback (most recent call last):\\n']

@@ -76,6 +76,10 @@ public enum PyRuntime {
         configuration.install_signal_handlers = 0
         try check(Py_InitializeFromConfig(&configuration))
 
+        // Built here rather than on first use, so `import _swiftpy` works from
+        // Python code too and not only from the Swift side.
+        _ = try helper("_compile_cell")
+
         // Initialization leaves the GIL held by this thread, and it stays that
         // way: an uncontended GIL that is never handed over costs nothing, and
         // keeping it here is what makes the interpreter single-threaded.
