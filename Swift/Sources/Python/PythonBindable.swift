@@ -37,6 +37,13 @@ public extension PythonBindable {
         _pythonCache.reference = object.reference
     }
 
+    /// The shape shared binding code uses: what a binding holds is a borrowed
+    /// reference out of ``PyArguments``, not a box.
+    func storeInPython(_ reference: PyRef?) {
+        guard let reference else { return }
+        storeInPython(PyObject(retaining: reference))
+    }
+
     static func fromPython(_ reference: PyRef) -> Self {
         let pointer = reference.userdata.load(as: UnsafeMutableRawPointer.self)
         return Unmanaged<Self>.fromOpaque(pointer).takeUnretainedValue()
