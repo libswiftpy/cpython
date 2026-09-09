@@ -119,7 +119,7 @@ struct CollectionConversionTests {
         #expect(stdout != nil)
 
         let version: String? = sys.version
-        #expect(version?.hasPrefix("3.16") == true)
+        #expect(version?.hasPrefix(expectedVersion) == true)
 
         sys.swiftpy_number = 7
         let number: Int? = sys.swiftpy_number

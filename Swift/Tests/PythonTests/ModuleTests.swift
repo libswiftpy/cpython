@@ -10,7 +10,7 @@ struct ModuleTests {
     @Test func importsAnExistingModule() throws {
         let sys = try #require(cpy.module("sys"))
         let version: String? = sys.version
-        #expect(version?.hasPrefix("3.16") == true)
+        #expect(version?.hasPrefix(expectedVersion) == true)
     }
 
     @Test func missingModuleIsNilRatherThanAnError() {
