@@ -48,6 +48,41 @@ struct TypeCreationTests {
         #expect(try PyRuntime.evaluate("issubclass(base_module.Derived, base_module.Marker)") == "False")
     }
 
+    /// What `@Scriptable(base: .View)` needs: a Swift-made base others derive
+    /// from. Base and subclass share the one userdata slot, because an object
+    /// has one Swift value however deep the chain is.
+    @Test func aCreatedTypeCanBeABase() throws {
+        let module = try #require(cpy.newmodule("derive_module"))
+        let before = deallocations
+
+        // Formed outside the macro: #require cannot expand a C function pointer.
+        let made = cpy.newtype(name: "Widget", module: module, dtor: countDeallocation)
+        let base = try #require(made)
+        base.function("width(self) -> int") { object, _ in
+            PyAPI.return { object.map { $0.toUserdata(as: Int.self) } }
+        }
+        let derived = cpy.newtype(name: "Slider", base: base, module: module, dtor: countDeallocation)
+        _ = try #require(derived)
+
+        try PyRuntime.run("""
+        import derive_module
+        slider = derive_module.Slider()
+        inherits = issubclass(derive_module.Slider, derive_module.Widget)
+        """)
+        #expect(try PyRuntime.evaluate("inherits") == "True")
+
+        // The subclass stores into the slot its base declared, and the method
+        // the base bound reads it back.
+        var slider: Python.PyObject? = try #require(cpy.main.slider)
+        slider?.storeUserdata(7)
+        #expect(try PyRuntime.evaluate("slider.width()") == "7")
+
+        // The subclass's own destructor is the one that runs, not the base's.
+        slider = nil
+        try PyRuntime.run("del slider")
+        #expect(deallocations == before + 1)
+    }
+
     @Test func aBoundMethodReceivesItsInstance() throws {
         let module = try #require(cpy.newmodule("method_module"))
         let type = try #require(cpy.newtype(name: "Doubler", module: module))

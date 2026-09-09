@@ -6,6 +6,11 @@ import Foundation
 @MainActor
 private var destructors: [PyRef: @convention(c) (UnsafeMutableRawPointer?) -> Void] = [:]
 
+/// Every type ``PyAPI/newtype(name:base:module:dtor:)`` made, so one can be
+/// recognised when it turns up as somebody's base.
+@MainActor
+private var createdTypes: Set<PyRef> = []
+
 /// Where a created type keeps its Swift value: right past the object header.
 /// Fixed rather than per-type so a Python subclass, whose own payload CPython
 /// lays out after ours, still finds it.
@@ -16,9 +21,10 @@ public extension PyAPI {
     /// Creates a heap type, the counterpart of pocketpy's `py_newtype`.
     ///
     /// Instances carry one pointer of Swift userdata, which is what a binding
-    /// stores its Swift value in. `base` may only be a type that adds no
-    /// storage of its own -- the userdata sits at a fixed offset, so anything
-    /// below it would land on the same bytes.
+    /// stores its Swift value in. `base` is either a type with no storage of
+    /// its own, or another created type -- those share the one userdata slot,
+    /// which is right: an object has one Swift value, whichever class in the
+    /// chain put it there. Anything else would land on the same bytes.
     func newtype(
         name: String,
         base: PyType = .object,
@@ -28,7 +34,8 @@ public extension PyAPI {
         let baseType = UnsafeMutableRawPointer(base.reference)
             .assumingMemoryBound(to: PyTypeObject.self)
         precondition(
-            baseType.pointee.tp_basicsize <= userdataOffset,
+            createdTypes.contains(base.reference)
+                || baseType.pointee.tp_basicsize <= userdataOffset,
             "\(name) cannot be based on \(base.name), which has storage of its own"
         )
 
@@ -58,6 +65,7 @@ public extension PyAPI {
             return nil
         }
 
+        createdTypes.insert(object)
         if let dtor {
             destructors[object] = dtor
         }
