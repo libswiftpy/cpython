@@ -27,10 +27,12 @@ public extension PyReferencing {
 
 /// A Python object, kept alive for as long as this wrapper is.
 ///
-/// `@unchecked Sendable` so it can be held by an actor, but every use of
-/// ``pointer`` still belongs on the main actor.
+/// Main-actor isolated, the way SwiftPy's is: the interpreter only ever runs
+/// on the thread that holds the GIL, so a box for one of its objects belongs
+/// there too.
+@MainActor
 @dynamicMemberLookup
-public final class PyObject: PyReferencing, @unchecked Sendable {
+public final class PyObject: @MainActor PyReferencing, Sendable {
     public private(set) var reference: PyRef
 
     /// Takes ownership of a new reference.

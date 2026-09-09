@@ -160,6 +160,86 @@ public extension PyAPI {
         return String(text) ?? ""
     }
 
+    /// Wraps a borrowed reference in a retaining ``PyObject``.
+    func retain(_ reference: PyRef?) -> PyObject? {
+        reference.map(PyObject.init(retaining:))
+    }
+
+    func retain(_ reference: PyRef) -> PyObject {
+        PyObject(retaining: reference)
+    }
+
+    /// Converts a Swift value and wraps the result.
+    func retain<Value: PythonConvertible>(_ value: Value) -> PyObject? {
+        try? value.toPython()
+    }
+
+    /// `iter(object)`.
+    func iter(_ reference: PyRef?) throws(PythonError) -> PyRef {
+        guard let reference, let iterator = PyObject_GetIter(reference) else {
+            PyErr_Clear()
+            throw .TypeError("object is not iterable")
+        }
+        return PyHold.take(iterator)
+    }
+
+    /// The next item, or a `StopIteration` when the iterator is spent.
+    func next(_ reference: PyRef) throws(PythonError) -> PyRef {
+        guard let item = PyIter_Next(reference) else {
+            guard PyErr_Occurred() != nil else { throw PythonError.StopIteration("") }
+            throw PyRuntime.raisedError()
+        }
+        return PyHold.take(item)
+    }
+
+    /// Calls `function`, converting each argument on the way in.
+    @discardableResult
+    func call(_ function: PyRef, args: (any PythonConvertible)?...) throws(PythonError) -> PyRef {
+        try call(function, unpacking: args)
+    }
+
+    @discardableResult
+    func call(
+        _ function: PyRef,
+        unpacking args: [(any PythonConvertible)?]
+    ) throws(PythonError) -> PyRef {
+        // Boxes, so every argument outlives the tuple that borrows it.
+        var boxes: [PyObject] = []
+        boxes.reserveCapacity(args.count)
+        for argument in args {
+            boxes.append(try argument?.toPython() ?? .none)
+        }
+
+        guard let tuple = PyTuple_New(boxes.count) else {
+            throw .SystemError("could not allocate a call tuple")
+        }
+        defer { Py_DecRef(tuple) }
+        for (index, box) in boxes.enumerated() {
+            Py_IncRef(box.reference)
+            PyTuple_SetItem(tuple, index, box.reference)
+        }
+
+        guard let result = PyObject_CallObject(function, tuple) else {
+            throw PyRuntime.raisedError()
+        }
+        return PyHold.take(result)
+    }
+
+    /// Drops everything the user put in `__main__`, keeping its dunders.
+    func clearMain() {
+        guard let module = PyImport_AddModule("__main__"),
+              let namespace = PyModule_GetDict(module),
+              let names = PyDict_Keys(namespace) else { return }
+        defer { Py_DecRef(names) }
+
+        for index in 0..<PyList_Size(names) {
+            guard let key = PyList_GetItem(names, index),
+                  let name = String(key), !name.hasPrefix("__") else { continue }
+            PyDict_DelItemString(namespace, name)
+        }
+        PyErr_Clear()
+    }
+
     /// Sets `error` as the raised exception.
     static func raise(_ error: PythonError) {
         PyErr_SetString(PyRuntime.exceptionType(named: error.type), error.value)
