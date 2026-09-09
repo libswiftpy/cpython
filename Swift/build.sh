@@ -50,11 +50,15 @@ cp "libpython$VERSION.a" "$DIST/lib/libpython.a"
 # still imported from disk.
 cp "$ROOT"/Lib/encodings/__init__.py \
    "$ROOT"/Lib/encodings/aliases.py \
-   "$ROOT"/Lib/encodings/_iconv_codecs.py \
    "$ROOT"/Lib/encodings/utf_8.py \
    "$ROOT"/Lib/encodings/latin_1.py \
    "$ROOT"/Lib/encodings/ascii.py \
    "$ENCODINGS_DIR/"
+
+# 3.16 and later only; `encodings` does not reach for it before that.
+if [ -f "$ROOT/Lib/encodings/_iconv_codecs.py" ]; then
+    cp "$ROOT/Lib/encodings/_iconv_codecs.py" "$ENCODINGS_DIR/"
+fi
 
 # iOS routes stdout and stderr through the system log, via this module.
 cp "$ROOT/Lib/_apple_support.py" "$APPLE_SUPPORT_DIR/"

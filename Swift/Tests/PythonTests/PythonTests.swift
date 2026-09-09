@@ -11,7 +11,7 @@ struct PythonTests {
 
     @Test func interpreterStarts() {
         #expect(PyRuntime.isInitialized)
-        #expect(PyRuntime.version.hasPrefix("3.16"))
+        #expect(PyRuntime.version.hasPrefix(expectedVersion))
     }
 
     @Test func evaluatesAnExpression() throws {
@@ -89,7 +89,7 @@ struct PythonTests {
     @Test func readsAttributesByDynamicMember() throws {
         let sys = try #require(cpy.module("sys"))
         let version = try #require(sys.version)
-        #expect(try PyRuntime.string(of: version).hasPrefix("3.16"))
+        #expect(try PyRuntime.string(of: version).hasPrefix(expectedVersion))
 
         // Missing reads as nil, and clears the exception it raised rather than
         // leaving it to surface at the next call.
