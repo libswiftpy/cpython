@@ -165,6 +165,16 @@ extension Double: PythonConvertible {
         }
         return value
     }
+
+    /// An int satisfies a float, the widening SwiftPy's `canCast` also allows.
+    @MainActor
+    public init?(_ reference: PyRef?) {
+        guard let reference,
+              Double.pyType.isInstance(reference) || PyType.int.isInstance(reference) else {
+            return nil
+        }
+        self = Double.fromPython(reference)
+    }
 }
 
 extension Float: PythonConvertible {
@@ -176,6 +186,12 @@ extension Float: PythonConvertible {
 
     public static func fromPython(_ reference: PyRef) -> Float {
         Float(Double.fromPython(reference))
+    }
+
+    @MainActor
+    public init?(_ reference: PyRef?) {
+        guard let value = Double(reference) else { return nil }
+        self = Float(value)
     }
 }
 

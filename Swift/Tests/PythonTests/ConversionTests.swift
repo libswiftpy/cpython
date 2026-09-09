@@ -126,8 +126,12 @@ struct CollectionConversionTests {
         #expect(number == 7)
 
         // Wrong Swift type reads as nil rather than converting.
-        let wrong: Double? = sys.swiftpy_number
+        let wrong: String? = sys.swiftpy_number
         #expect(wrong == nil)
+
+        // An int is not the wrong type for a float, the same as in SwiftPy.
+        let widened: Double? = sys.swiftpy_number
+        #expect(widened == 7)
     }
 }
 
