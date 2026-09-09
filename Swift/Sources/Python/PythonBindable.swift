@@ -54,13 +54,20 @@ public extension PythonBindable {
 public extension PyType {
     /// Creates a type for a ``PythonBindable``, spelled like SwiftPy's.
     ///
-    /// The base is always `object`; see ``PyAPI/newtype(name:module:dtor:)``.
+    /// Only a base without storage of its own works; see
+    /// ``PyAPI/newtype(name:base:module:dtor:)``.
     static func make(
         _ name: String,
+        base: PyType = .object,
         module: PyModule? = nil,
         bind: @MainActor (PyType) -> Void
     ) -> PyType {
-        guard let type = cpy.newtype(name: name, module: module, dtor: releaseBoundObject) else {
+        guard let type = cpy.newtype(
+            name: name,
+            base: base,
+            module: module,
+            dtor: releaseBoundObject
+        ) else {
             preconditionFailure("could not create the type \(name)")
         }
         bind(type)
