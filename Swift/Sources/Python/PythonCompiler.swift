@@ -36,7 +36,13 @@ public enum PythonCompiler {
             )
         }
 
-        guard let code = Py_CompileStringExFlags(source, filename, mode.start, nil, -1) else {
+        // Source with a top-level `await` compiles to a coroutine that
+        // `execute` hands back instead of running. See PythonCoroutine.swift.
+        var flags = PyCompilerFlags(
+            cf_flags: PyCF_ALLOW_TOP_LEVEL_AWAIT,
+            cf_feature_version: 0
+        )
+        guard let code = Py_CompileStringExFlags(source, filename, mode.start, &flags, -1) else {
             throw PyRuntime.raisedError()
         }
         return PyObject(consuming: code)
