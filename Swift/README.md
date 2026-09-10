@@ -106,9 +106,10 @@ over `STDOUT_FILENO` instead.
 
 ## In an app bundle
 
-Nothing to do: each stdlib module is a **resource of its own target**, so
-SwiftPM packs them into `cpython_PythonEncodings.bundle` and
-`cpython_PythonAppleSupport.bundle`, and Xcode embeds those in
+Nothing to do: the bundled stdlib is a **resource of a Swift target** --
+`encodings` and `_apple_support` have one each, because the interpreter needs
+them while starting, and everything else shares the `stdlib` target. SwiftPM
+packs them into `cpython_*.bundle`s, and Xcode embeds those in
 `YourApp.app/Contents/Resources`. `Python.initialize()` puts their
 `Bundle.module` directories on `sys.path`, which a sandboxed app can read —
 unlike the CPython checkout the package was built from, which the App Sandbox

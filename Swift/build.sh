@@ -32,9 +32,10 @@ VERSION=$(./python.exe -c 'import sys; print("%d.%d" % sys.version_info[:2])')
 # it up as a resource; everything else is a build input and stays in $DIST.
 ENCODINGS_DIR="$ROOT/Swift/Sources/encodings/encodings"
 APPLE_SUPPORT_DIR="$ROOT/Swift/Sources/_apple_support"
+STDLIB_DIR="$ROOT/Swift/Sources/stdlib/stdlib"
 
-rm -rf "$DIST" "$ENCODINGS_DIR"
-mkdir -p "$DIST/include/python" "$DIST/lib" "$ENCODINGS_DIR"
+rm -rf "$DIST" "$ENCODINGS_DIR" "$STDLIB_DIR"
+mkdir -p "$DIST/include/python" "$DIST/lib" "$ENCODINGS_DIR" "$STDLIB_DIR"
 
 # Headers: the public API plus the generated pyconfig.h next to it, so that
 # Python.h resolves every #include relative to itself and Swift needs no -I.
@@ -63,6 +64,20 @@ fi
 # iOS routes stdout and stderr through the system log, via this module.
 cp "$ROOT/Lib/_apple_support.py" "$APPLE_SUPPORT_DIR/"
 
+# The pure-Python stdlib the package ships. functools and everything it
+# reaches at import time, plus what `collections` defers with 3.15's lazy
+# import -- copy and heapq are needed the moment Counter.most_common or
+# OrderedDict.copy is called. None of these needs a C module of its own:
+# heapq falls back to its Python path when _heapq is absent.
+STDLIB_MODULES=(
+    functools operator types reprlib keyword
+    copy copyreg weakref _weakrefset heapq
+)
+for module in "${STDLIB_MODULES[@]}"; do
+    cp "$ROOT/Lib/$module.py" "$STDLIB_DIR/"
+done
+cp -R "$ROOT/Lib/collections" "$STDLIB_DIR/"
+
 # Link flags, read out of CPython's own build configuration rather than
 # hard-coded per platform; compare them with Package.swift if linking fails.
 ./python.exe -c '
@@ -84,9 +99,10 @@ print(" ".join(flags))
 ' > "$DIST/link-flags.txt"
 
 # Bytecode caches would ship as dead weight in the resource bundles.
-find "$ENCODINGS_DIR" "$APPLE_SUPPORT_DIR" -name __pycache__ -type d \
+find "$ENCODINGS_DIR" "$APPLE_SUPPORT_DIR" "$STDLIB_DIR" -name __pycache__ -type d \
     -exec rm -rf {} + 2>/dev/null || true
 
 echo "staged $DIST for CPython $VERSION ($(du -sh "$DIST" | cut -f1))"
 echo "staged encodings ($(du -sh "$ENCODINGS_DIR" | cut -f1))"
+echo "staged stdlib ($(du -sh "$STDLIB_DIR" | cut -f1))"
 echo "link flags: $(cat "$DIST/link-flags.txt")"

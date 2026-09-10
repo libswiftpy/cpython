@@ -87,10 +87,20 @@ let package = Package(
             resources: [.copy("_apple_support.py")]
         ),
 
+        // The rest of the pure-Python stdlib the package ships, in one bundle
+        // rather than one per module: the list is meant to grow, and the plan
+        // is a zip on sys.path once it does.
+        .target(
+            name: "stdlib",
+            dependencies: ["PythonModules"],
+            path: "Swift/Sources/stdlib",
+            resources: [.copy("stdlib")]
+        ),
+
         // A thin Swift face on top of it.
         .target(
             name: "Python",
-            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "zlib"],
+            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlib"],
             path: "Swift/Sources/Python",
             linkerSettings: systemLibraries
         ),

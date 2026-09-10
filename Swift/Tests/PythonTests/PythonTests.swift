@@ -52,6 +52,18 @@ struct PythonTests {
         #expect(captured == "still here\n")
     }
 
+    /// The pure-Python stdlib the package stages: functools and the modules it
+    /// reaches, including the ones `collections` defers with a lazy import.
+    @Test func importsTheStagedStdlib() throws {
+        #expect(try PyRuntime.evaluate("__import__('functools').reduce(lambda a, b: a + b, [1, 2, 3])") == "6")
+        #expect(try PyRuntime.evaluate("__import__('functools').lru_cache is not None") == "True")
+
+        // copy and heapq arrive only when something reaches for them.
+        #expect(try PyRuntime.evaluate(
+            "__import__('collections').Counter('aab').most_common(1)"
+        ) == "[('a', 2)]")
+    }
+
     @Test func globalStartsTheInterpreter() throws {
         #expect(cpy.isInitialized)
         #expect(try cpy.evaluate("1 + 1") == "2")
