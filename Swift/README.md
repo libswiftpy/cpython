@@ -97,8 +97,9 @@ calls: the value, then the newline. Tracebacks come through the same way,
 since they are written to `sys.stderr`. Pass `nil` to restore
 `sys.__stdout__`/`sys.__stderr__`.
 
-The hook is a `PyCFunction` built in Swift and dropped into `__main__` as
-`_swift_write`; a small Python class forwards `write()` to it. That is all
+The hook is a `PyCFunction` built in Swift, kept in a namespace of its own
+as `_swift_write`; a small Python class forwards `write()` to it. It stays out
+of `__main__` so clearing that does not take `print` with it. That is all
 `sys.stdout` has to implement — no extension module needed. It does not catch
 C code writing to file descriptor 1 directly; for that you would `dup2` a pipe
 over `STDOUT_FILENO` instead.

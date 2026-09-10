@@ -21,18 +21,26 @@ extension PyRuntime {
             return
         }
 
-        guard let main = PyImport_AddModule("__main__"),
-              let globals = PyModule_GetDict(main),
+        // Its own namespace, not `__main__`: clearing that (a console starting
+        // a new session) would take the write hook with it and leave `print`
+        // raising NameError.
+        guard let namespace = PyDict_New() else {
+            throw .SystemError("could not make the write hook")
+        }
+        defer { Py_DecRef(namespace) }
+
+        guard let builtins = PyEval_GetBuiltins(),
+              PyDict_SetItemString(namespace, "__builtins__", builtins) == 0,
               let write = PyCFunction_NewEx(writeMethod, nil, nil) else {
             throw .SystemError("could not make the write hook")
         }
         // The dict takes its own reference, so drop ours after inserting.
-        PyDict_SetItemString(globals, "_swift_write", write)
+        PyDict_SetItemString(namespace, "_swift_write", write)
         Py_DecRef(write)
 
         // A file-like object is all sys.stdout has to be; `print` only ever
         // calls write(), and the interpreter calls flush() on shutdown.
-        try run("""
+        let source = """
             class _SwiftOutput:
                 def write(self, text):
                     _swift_write(text)
@@ -46,8 +54,11 @@ extension PyRuntime {
 
             import sys
             sys.stdout = sys.stderr = _SwiftOutput()
-            del _SwiftOutput
-            """)
+            """
+        guard let result = PyRun_StringFlags(source, Py_file_input, namespace, namespace, nil) else {
+            throw raisedError()
+        }
+        Py_DecRef(result)
     }
 
     private nonisolated(unsafe) static var outputHook: ((String) -> Void)?
