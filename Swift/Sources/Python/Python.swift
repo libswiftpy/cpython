@@ -2,6 +2,7 @@ import CPython
 import PythonModules
 import _apple_support
 import encodings
+import stdlib
 import zlib
 
 @_exported import struct PythonModules.PythonModule
@@ -21,7 +22,7 @@ public enum PyRuntime {
     /// The stdlib always linked in: what the interpreter imports while starting,
     /// plus `zlib`, without which zipped imports and archives do not work.
     public static var essentialModules: [PythonModule] {
-        [.encodings, .appleSupport, .zlib]
+        [.encodings, .appleSupport, .stdlib, .zlib]
     }
 
     /// The interpreter's version, e.g. `3.16.0a0 (heads/main, ...)`.
