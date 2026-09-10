@@ -75,6 +75,37 @@ struct CoroutineTests {
         #expect(ticks.count > 1)
     }
 
+    /// A cell goes through `_compile_cell`, where the flag has to be passed a
+    /// second time: it does not survive the AST the helper recompiles.
+    @Test func aCellCompilesTopLevelAwaitToo() throws {
+        let cell = try PythonCompiler.compile("""
+        import _swiftpy
+        await _swiftpy.sleep(0)
+        """, filename: "<cell>", mode: .single)
+
+        #expect(PyRuntime.isCoroutine(try PyRuntime.execute(cell)))
+    }
+
+    /// What the host plugs in: its own objects become awaitable through
+    /// `awaitable(yielding:)`, and its closure decides what awaiting one does.
+    @Test func aPerformClosureDecidesWhatAnAwaitMeans() async throws {
+        let result = try coroutine("""
+        class Work:
+            def __await__(self):
+                import _swiftpy
+                return _swiftpy._awaitable(self)
+
+        answered = await Work()
+        """)
+
+        try await PyRuntime.drive(result) { request in
+            #expect(request.typeName == "Work")
+            return try "from Swift".toPython()
+        }
+
+        #expect(try PyRuntime.evaluate("answered") == "from Swift")
+    }
+
     @Test func anErrorInsideACoroutinePropagates() async throws {
         let result = try coroutine("""
         import _swiftpy
