@@ -40,6 +40,18 @@ struct PythonTests {
         #expect(captured.hasSuffix("to stderr"))
     }
 
+    /// The hook used to live in `__main__`, where a console starting a new
+    /// session cleared it and left `print` raising NameError.
+    @Test func outputSurvivesClearingMain() throws {
+        nonisolated(unsafe) var captured = ""
+        try PyRuntime.redirectOutput { captured += $0 }
+        defer { try? PyRuntime.redirectOutput(to: nil) }
+
+        cpy.clearMain()
+        try PyRuntime.run("print('still here')")
+        #expect(captured == "still here\n")
+    }
+
     @Test func globalStartsTheInterpreter() throws {
         #expect(cpy.isInitialized)
         #expect(try cpy.evaluate("1 + 1") == "2")
