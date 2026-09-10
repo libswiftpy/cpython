@@ -9,11 +9,28 @@ public extension PyRuntime {
         object.typeName == "coroutine"
     }
 
-    /// Steps a coroutine to completion, doing the Swift-side work each `await`
-    /// asks for. The main actor is free while that work is in flight.
+    /// A one-shot iterator handing `request` to the driver: what a Swift-backed
+    /// `__await__` returns to make its object awaitable.
+    @MainActor
+    static func awaitable(yielding request: PyObject) throws(PythonError) -> PyObject {
+        let make = try helper("_awaitable")
+        defer { Py_DecRef(make) }
+
+        guard let iterator = PyObject_CallOneArg(make, request.reference) else {
+            throw raisedError()
+        }
+        return PyObject(consuming: iterator)
+    }
+
+    /// Steps a coroutine to completion, handing whatever it suspends on to
+    /// `perform` and sending the result back in. The main actor is free while
+    /// that work is in flight.
     @MainActor
     @discardableResult
-    static func drive(_ coroutine: PyObject) async throws(PythonError) -> PyObject {
+    static func drive(
+        _ coroutine: PyObject,
+        perform: @MainActor (PyObject) async throws -> PyObject = { try await performSleep($0) }
+    ) async throws(PythonError) -> PyObject {
         // A coroutine that has not started yet can only be sent None.
         var sent = PyObject.none
 
@@ -34,16 +51,23 @@ public extension PyRuntime {
             if status == PYGEN_RETURN {
                 return object
             }
-            sent = try await perform(object)
+
+            do {
+                sent = try await perform(object)
+            } catch let error as PythonError {
+                throw error
+            } catch {
+                throw PythonError.RuntimeError("\(error)")
+            }
         }
     }
 
-    /// Runs what a suspended coroutine yielded. The PoC understands one
-    /// request; a real bridge would dispatch on the object's type.
+    /// What an awaited object means when the host has not said: this package
+    /// understands its own `_swiftpy.sleep` and nothing else.
     @MainActor
-    private static func perform(_ request: PyObject) async throws(PythonError) -> PyObject {
+    static func performSleep(_ request: PyObject) async throws -> PyObject {
         guard let seconds: Double = request.seconds else {
-            throw .TypeError("awaited a \(request.typeName), which Swift cannot run")
+            throw PythonError.TypeError("awaited a \(request.typeName), which Swift cannot run")
         }
         try? await Task.sleep(for: .seconds(seconds))
         return .none
