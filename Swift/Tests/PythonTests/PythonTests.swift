@@ -72,6 +72,11 @@ struct PythonTests {
         #expect(try PyRuntime.evaluate("__import__('json').dumps({'a': [1, None]})") == #"{"a": [1, null]}"#)
         #expect(try PyRuntime.evaluate("__import__('re').sub(r'\\d+', '#', 'a1b22')") == "a#b#")
 
+        // typing: everything it imports was already here.
+        #expect(try PyRuntime.evaluate(
+            "str(__import__('typing').get_type_hints(type('T', (), {'__annotations__': {'x': 'int | None'}})))"
+        ) == "{'x': int | None}")
+
         // What annotationlib needs to spell an annotation back out as text.
         #expect(try PyRuntime.evaluate(
             "__import__('annotationlib').get_annotations(type('T', (), {'__annotations__': {'x': 'int | None'}}), format=4)"
