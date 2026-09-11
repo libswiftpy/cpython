@@ -362,8 +362,9 @@ extension Dictionary: PythonConvertible where Key: PythonConvertible {
 
 @MainActor
 public extension PyReferencing {
-    /// The closest Swift value, or `nil` when nothing fits.
+    /// The closest Swift value, or PyObject when nothing fits.
     var asAny: Any? {
+        if reference.isNone { return nil }
         if let value = String(reference) { return value }
         if let value = Bool(reference) { return value }
         if let value = Int(reference) { return value }
@@ -371,6 +372,6 @@ public extension PyReferencing {
         if let value = Data(reference) { return value }
         if let value = [Any?](reference) { return value }
         if let value = [String: Any](reference) { return value }
-        return nil
+        return PyObject(retaining: reference)
     }
 }

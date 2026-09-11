@@ -102,7 +102,7 @@ extension PyRuntime {
         # star parameters. CPython's own argument binding then does what
         # pocketpy's py_bind does: keywords by name, defaults filled, *args
         # one tuple, **kwargs one dict, all handed on in declaration order.
-        def _wrap(signature, raw, docstring):
+        def _wrap(signature, raw, docstring, is_async=False):
             import ast
             name = signature[:signature.index('(')].strip()
             arguments = ast.parse('def ' + signature + ': pass').body[0].args
@@ -116,6 +116,7 @@ extension PyRuntime {
             exec('def ' + signature + ':\\n    return _raw(' + ', '.join(names) + ')', namespace)
             function = namespace[name]
             function.__doc__ = docstring
+            function._is_async = is_async
             return function
 
         def _format_exception(exception):

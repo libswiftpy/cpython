@@ -127,10 +127,35 @@ public struct PyModule: @MainActor PyReferencing {
         set(name, to: bound)
     }
 
-    /// The async machinery is not ported yet, so this binds an ordinary
-    /// function: what it returns is whatever the binding hands back.
     public func asyncDef(_ signature: String, docstring: String? = nil, function: PyAPI.CFunction) {
-        def(signature, docstring: docstring, function: function)
+        let name = String(signature.prefix { $0 != "(" })
+            .trimmingCharacters(in: .whitespaces)
+        let documentation = clinicDocumentation(
+            signature: signature,
+            docstring: docstring,
+            receiver: "$module"
+        )
+        let method = UnsafeMutablePointer<PyMethodDef>.allocate(capacity: 1)
+        method.initialize(to: PyMethodDef(
+            ml_name: strdup(name),
+            ml_meth: function,
+            ml_flags: Int32(METH_VARARGS),
+            ml_doc: strdup(documentation)
+        ))
+        guard let bound = PyCFunction_NewEx(method, reference, nil) else {
+            PyErr_Clear()
+            return
+        }
+        defer { Py_DecRef(bound) }
+
+        guard let wrapper = signatureWrapper(
+            signature,
+            docstring: docstring,
+            around: bound,
+            isAsync: true
+        ) else { return }
+        defer { Py_DecRef(wrapper) }
+        set(name, to: wrapper)
     }
 }
 

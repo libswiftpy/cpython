@@ -273,14 +273,19 @@ public extension PyType {
 /// Python itself. Nil, and nothing to release, when the signature needs none
 /// of that. See `_wrap` in PythonCell.swift.
 @MainActor
-func signatureWrapper(_ signature: String, docstring: String?, around raw: PyRef) -> PyRef? {
+func signatureWrapper(
+    _ signature: String,
+    docstring: String?,
+    around raw: PyRef,
+    isAsync: Bool = false
+) -> PyRef? {
     let head = signature.components(separatedBy: "->").first ?? signature
-    guard head.contains("=") || head.contains("*") else { return nil }
+    guard isAsync || head.contains("=") || head.contains("*") else { return nil }
 
     guard let wrap = try? PyRuntime.helper("_wrap") else { return nil }
     defer { Py_DecRef(wrap) }
 
-    guard let arguments = PyTuple_New(3),
+    guard let arguments = PyTuple_New(4),
           let text = PyUnicode_FromString(signature) else {
         PyErr_Clear()
         return nil
@@ -292,6 +297,7 @@ func signatureWrapper(_ signature: String, docstring: String?, around raw: PyRef
     PyTuple_SetItem(arguments, 1, raw)
     PyTuple_SetItem(arguments, 2, docstring.flatMap { PyUnicode_FromString($0) }
         ?? Py_GetConstant(UInt32(Py_CONSTANT_NONE)))
+    PyTuple_SetItem(arguments, 3, PyBool_FromLong(isAsync ? 1 : 0))
 
     guard let function = PyObject_Call(wrap, arguments, nil) else {
         // A signature the def syntax refuses is a bug in the binding; say so

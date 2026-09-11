@@ -18,6 +18,12 @@ struct PythonTests {
         #expect(try PyRuntime.evaluate("2 ** 10") == "1024")
     }
 
+    @Test func createsAnEmptyDictionary() throws {
+        let dictionary = try PyObject.newDict()
+        #expect(dictionary.typeName == "dict")
+        #expect(try PyRuntime.string(of: dictionary) == "{}")
+    }
+
     @Test func runsStatements() throws {
         try PyRuntime.run("greeting = 'hello from ' + 'python'")
         #expect(try PyRuntime.evaluate("greeting") == "hello from python")
