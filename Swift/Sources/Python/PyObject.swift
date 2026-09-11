@@ -47,6 +47,15 @@ public final class PyObject: @MainActor PyReferencing, Sendable {
         self.reference = reference
     }
 
+    /// Creates an empty Python dictionary.
+    @MainActor
+    public static func newDict() throws(PythonError) -> PyObject {
+        guard let dictionary = PyDict_New() else {
+            throw .SystemError("could not allocate a dict")
+        }
+        return PyObject(consuming: dictionary)
+    }
+
     /// Python's `None`.
     @MainActor
     public static var none: PyObject {
