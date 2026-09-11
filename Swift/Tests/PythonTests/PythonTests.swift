@@ -62,6 +62,11 @@ struct PythonTests {
         #expect(try PyRuntime.evaluate(
             "__import__('collections').Counter('aab').most_common(1)"
         ) == "[('a', 2)]")
+
+        // inspect, which rlcompleter and help() read signatures through.
+        #expect(try PyRuntime.evaluate(
+            "str(__import__('inspect').signature(lambda a, b=1: None))"
+        ) == "(a, b=1)")
     }
 
     @Test func globalStartsTheInterpreter() throws {

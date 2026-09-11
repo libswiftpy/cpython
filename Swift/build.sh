@@ -69,14 +69,20 @@ cp "$ROOT/Lib/_apple_support.py" "$APPLE_SUPPORT_DIR/"
 # import -- copy and heapq are needed the moment Counter.most_common or
 # OrderedDict.copy is called. None of these needs a C module of its own:
 # heapq falls back to its Python path when _heapq is absent.
+# inspect and what it imports come next: rlcompleter and help() read
+# signatures through it. re and tokenize are its lazy imports, left out.
 STDLIB_MODULES=(
     functools operator types reprlib keyword
     copy copyreg weakref _weakrefset heapq
+    inspect enum dis ast annotationlib opcode token _opcode_metadata
 )
+STDLIB_PACKAGES=(collections importlib)
 for module in "${STDLIB_MODULES[@]}"; do
     cp "$ROOT/Lib/$module.py" "$STDLIB_DIR/"
 done
-cp -R "$ROOT/Lib/collections" "$STDLIB_DIR/"
+for package in "${STDLIB_PACKAGES[@]}"; do
+    cp -R "$ROOT/Lib/$package" "$STDLIB_DIR/"
+done
 
 # Link flags, read out of CPython's own build configuration rather than
 # hard-coded per platform; compare them with Package.swift if linking fails.
