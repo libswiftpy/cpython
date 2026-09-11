@@ -73,7 +73,7 @@ cp "$ROOT/Lib/_apple_support.py" "$APPLE_SUPPORT_DIR/"
 # signatures through it. re and tokenize are its lazy imports, left out.
 # datetime uses the _datetime builtin already linked into libpython.
 STDLIB_MODULES=(
-    functools operator types reprlib keyword datetime random bisect
+    functools operator types reprlib keyword datetime random bisect pkgutil
     copy copyreg weakref _weakrefset heapq
     inspect enum dis ast _ast_unparse contextlib annotationlib opcode token tokenize _opcode_metadata
     typing
