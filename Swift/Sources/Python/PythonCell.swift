@@ -98,6 +98,26 @@ extension PyRuntime {
         def sleep(seconds):
             return _SwiftAwaitable(seconds)
 
+        # The def standing in front of a binding whose signature has defaults or
+        # star parameters. CPython's own argument binding then does what
+        # pocketpy's py_bind does: keywords by name, defaults filled, *args
+        # one tuple, **kwargs one dict, all handed on in declaration order.
+        def _wrap(signature, raw, docstring):
+            import ast
+            name = signature[:signature.index('(')].strip()
+            arguments = ast.parse('def ' + signature + ': pass').body[0].args
+            names = [a.arg for a in arguments.posonlyargs + arguments.args]
+            if arguments.vararg:
+                names.append(arguments.vararg.arg)
+            names += [a.arg for a in arguments.kwonlyargs]
+            if arguments.kwarg:
+                names.append(arguments.kwarg.arg)
+            namespace = {'_raw': raw}
+            exec('def ' + signature + ':\\n    return _raw(' + ', '.join(names) + ')', namespace)
+            function = namespace[name]
+            function.__doc__ = docstring
+            return function
+
         def _format_exception(exception):
             lines = ['Traceback (most recent call last):\\n']
             traceback = exception.__traceback__

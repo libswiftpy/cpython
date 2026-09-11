@@ -111,11 +111,19 @@ public struct PyModule: @MainActor PyReferencing {
             ml_doc: strdup(documentation)
         ))
 
-        guard let bound = PyCFunction_NewEx(method, nil, nil) else {
+        // The module is the function's __self__, as CPython's own are: inspect
+        // then knows to drop the `$module` slot from the text signature.
+        guard let bound = PyCFunction_NewEx(method, reference, nil) else {
             PyErr_Clear()
             return
         }
         defer { Py_DecRef(bound) }
+
+        if let wrapper = signatureWrapper(signature, docstring: docstring, around: bound) {
+            defer { Py_DecRef(wrapper) }
+            set(name, to: wrapper)
+            return
+        }
         set(name, to: bound)
     }
 
