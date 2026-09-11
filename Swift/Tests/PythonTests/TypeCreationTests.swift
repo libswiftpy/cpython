@@ -34,6 +34,16 @@ struct TypeCreationTests {
         type_name = type(made).__name__
         """)
         #expect(try PyRuntime.evaluate("type_name") == "Counter")
+        #expect(try PyRuntime.evaluate("type_module.Counter.__module__") == "type_module")
+    }
+
+    /// A bare spec name draws a DeprecationWarning; without a module the type
+    /// reports itself as a builtin, the way pocketpy's do.
+    @Test func aTypeWithoutAModuleIsABuiltin() throws {
+        let type = try #require(cpy.newtype(name: "Loose"))
+        #expect(type.name == "Loose")
+        #expect(try PyRuntime.string(of: PyObject(type).__module__!) == "builtins")
+        #expect(try PyRuntime.string(of: PyObject(type).__name__!) == "Loose")
     }
 
     /// The base a `@Scriptable` binding names, which is `object` unless it

@@ -61,8 +61,12 @@ public extension PyAPI {
         // with, whatever it asked for itself.
         let size = max(Int(baseType.pointee.tp_basicsize), userdataOffset + storage)
 
+        // The dotted name is how a spec names its module: a bare one draws a
+        // DeprecationWarning at creation. A type made without a module is a
+        // builtin, the way pocketpy's are.
+        let moduleName = module.flatMap { $0.__name__ as String? } ?? "builtins"
         var specification = PyType_Spec(
-            name: strdup(name),
+            name: strdup(moduleName + "." + name),
             basicsize: Int32(size),
             itemsize: 0,
             flags: UInt32(UInt(Py_TPFLAGS_DEFAULT) | UInt(Py_TPFLAGS_BASETYPE)),
