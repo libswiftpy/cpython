@@ -27,7 +27,11 @@ typedef double float64_t;
  * from mm_malloc.h. */
 #if defined(__APPLE__) && defined(__MACH__)
 #  include <AvailabilityMacros.h>
-#  if defined(MAC_OS_X_VERSION_MIN_REQUIRED) &&                                \
+#  include <TargetConditionals.h>
+/* macOS only: the iOS SDK defines the macro too, at a value below 10.15,
+ * and mm_malloc.h is an x86 intrinsics header that clang modules refuse
+ * on arm64. */
+#  if TARGET_OS_OSX && defined(MAC_OS_X_VERSION_MIN_REQUIRED) &&               \
    (MAC_OS_X_VERSION_MIN_REQUIRED < 101500)
 #    include <mm_malloc.h>
 #    define LEGACY_MACOS
