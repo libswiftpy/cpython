@@ -76,6 +76,7 @@ STDLIB_MODULES=(
     functools operator types reprlib keyword datetime random bisect
     copy copyreg weakref _weakrefset heapq
     inspect enum dis ast _ast_unparse contextlib annotationlib opcode token tokenize _opcode_metadata
+    typing
 )
 # json falls back to its Python scanner without _json; re needs only _sre.
 STDLIB_PACKAGES=(collections importlib json re)
