@@ -74,15 +74,18 @@ cp "$ROOT/Lib/_apple_support.py" "$APPLE_SUPPORT_DIR/"
 STDLIB_MODULES=(
     functools operator types reprlib keyword
     copy copyreg weakref _weakrefset heapq
-    inspect enum dis ast annotationlib opcode token _opcode_metadata
+    inspect enum dis ast _ast_unparse contextlib annotationlib opcode token _opcode_metadata
 )
-STDLIB_PACKAGES=(collections importlib)
+# json falls back to its Python scanner without _json; re needs only _sre.
+STDLIB_PACKAGES=(collections importlib json re)
 for module in "${STDLIB_MODULES[@]}"; do
     cp "$ROOT/Lib/$module.py" "$STDLIB_DIR/"
 done
 for package in "${STDLIB_PACKAGES[@]}"; do
     cp -R "$ROOT/Lib/$package" "$STDLIB_DIR/"
 done
+# The `python -m json.tool` CLI, which drags argparse in.
+rm -f "$STDLIB_DIR/json/tool.py"
 
 # Link flags, read out of CPython's own build configuration rather than
 # hard-coded per platform; compare them with Package.swift if linking fails.
