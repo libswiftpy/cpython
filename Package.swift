@@ -100,7 +100,7 @@ let package = Package(
         // A thin Swift face on top of it.
         .target(
             name: "Python",
-            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlib"],
+            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlib", "math", "_random", "_sha2"],
             path: "Swift/Sources/Python",
             linkerSettings: systemLibraries
         ),
@@ -120,6 +120,49 @@ let package = Package(
             name: "zlib",
             dependencies: ["PythonModules", "Czlib"],
             path: "Swift/Sources/zlib"
+        ),
+
+        // Native dependencies of the bundled random module.
+        .target(
+            name: "Cmath",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["mathmodule.c", "mathintegermodule.c", "_swiftpy/math/shim.c"],
+            publicHeadersPath: "_swiftpy/math",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "math",
+            dependencies: ["PythonModules", "Cmath"],
+            path: "Swift/Sources/math"
+        ),
+
+        .target(
+            name: "Crandom",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["_randommodule.c", "_swiftpy/_random/shim.c"],
+            publicHeadersPath: "_swiftpy/_random",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "_random",
+            dependencies: ["PythonModules", "Crandom"],
+            path: "Swift/Sources/_random"
+        ),
+
+        .target(
+            name: "Csha2",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["sha2module.c", "_hacl/Hacl_Hash_SHA2.c", "_swiftpy/_sha2/shim.c"],
+            publicHeadersPath: "_swiftpy/_sha2",
+            cSettings: moduleSettings + [.headerSearchPath("_hacl"), .headerSearchPath("_hacl/include")]
+        ),
+        .target(
+            name: "_sha2",
+            dependencies: ["PythonModules", "Csha2"],
+            path: "Swift/Sources/_sha2"
         ),
 
         .executableTarget(name: "pyrun", dependencies: ["Python"], path: "Swift/Sources/pyrun"),

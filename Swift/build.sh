@@ -71,8 +71,9 @@ cp "$ROOT/Lib/_apple_support.py" "$APPLE_SUPPORT_DIR/"
 # heapq falls back to its Python path when _heapq is absent.
 # inspect and what it imports come next: rlcompleter and help() read
 # signatures through it. re and tokenize are its lazy imports, left out.
+# datetime uses the _datetime builtin already linked into libpython.
 STDLIB_MODULES=(
-    functools operator types reprlib keyword
+    functools operator types reprlib keyword datetime random bisect
     copy copyreg weakref _weakrefset heapq
     inspect enum dis ast _ast_unparse contextlib annotationlib opcode token tokenize _opcode_metadata
 )

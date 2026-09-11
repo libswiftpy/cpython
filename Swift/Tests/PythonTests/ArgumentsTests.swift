@@ -41,6 +41,29 @@ struct ArgumentsTests {
         #expect(try PyRuntime.evaluate("function_module.joined('a', 'b')") == "2:ab")
     }
 
+    @Test func optionalFloatParameterAcceptsIntegerKeywords() throws {
+        let module = try #require(cpy.newmodule("timeout_argument_module"))
+        module.def("get(url: str, params=None, data=None, json=None, headers=None, timeout: float = None) -> float | None") { receiver, args in
+            PyAPI.return {
+                let arguments = PyArguments(function: receiver, args)
+                return try Double?.cast(arguments, 5)
+            }
+        }
+        try PyRuntime.run("""
+        import timeout_argument_module as request
+        assert request.get('https://example.com', timeout=10) == 10.0
+        assert request.get('https://example.com', timeout=0.5) == 0.5
+        assert request.get('https://example.com') is None
+        assert request.get('https://example.com', timeout=None) is None
+        try:
+            request.get('https://example.com', timeout='10')
+        except TypeError:
+            pass
+        else:
+            raise AssertionError('A string timeout must be rejected')
+        """)
+    }
+
     @Test func readingPastTheEndIsNil() throws {
         let empty = PyArguments(function: nil, nil)
         #expect(empty.count == 0)
