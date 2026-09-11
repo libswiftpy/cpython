@@ -167,6 +167,14 @@ public extension PyType {
             return
         }
         defer { Py_DecRef(descriptor) }
+
+        // Set on the type, the def is a method and binds self; the raw
+        // descriptor it forwards to then binds it again from the arguments.
+        if let wrapper = signatureWrapper(signature, docstring: docstring, around: descriptor) {
+            defer { Py_DecRef(wrapper) }
+            set(name, to: wrapper)
+            return
+        }
         set(name, to: descriptor)
     }
 
@@ -212,6 +220,8 @@ public extension PyType {
         let name = String(signature.prefix { $0 != "(" })
             .trimmingCharacters(in: .whitespaces)
 
+        // The type is the function's __self__, so inspect drops the `$type`
+        // slot; the binding itself never reads it.
         guard let callable = PyCFunction_NewEx(
             methodTable(
                 name: name,
@@ -222,7 +232,7 @@ public extension PyType {
                 ),
                 function: function
             ),
-            nil,
+            reference,
             nil
         ) else {
             PyErr_Clear()
@@ -230,9 +240,15 @@ public extension PyType {
         }
         defer { Py_DecRef(callable) }
 
+        let function = signatureWrapper(signature, docstring: docstring, around: callable) ?? {
+            Py_IncRef(callable)
+            return callable
+        }()
+        defer { Py_DecRef(function) }
+
         // Without this the function would still bind a receiver when it is
         // reached through an instance.
-        guard let wrapped = PyStaticMethod_New(callable) else {
+        guard let wrapped = PyStaticMethod_New(function) else {
             PyErr_Clear()
             return
         }
@@ -249,6 +265,41 @@ public extension PyType {
         // attribute caches that would otherwise keep serving the old value.
         PyType_Modified(UnsafeMutableRawPointer(reference).assumingMemoryBound(to: PyTypeObject.self))
     }
+}
+
+/// A Python `def` with the binding's own signature, forwarding to `raw`, for
+/// a signature with defaults or star parameters -- CPython's `METH_VARARGS`
+/// hands over positionals only, so keywords and defaults have to be bound by
+/// Python itself. Nil, and nothing to release, when the signature needs none
+/// of that. See `_wrap` in PythonCell.swift.
+@MainActor
+func signatureWrapper(_ signature: String, docstring: String?, around raw: PyRef) -> PyRef? {
+    let head = signature.components(separatedBy: "->").first ?? signature
+    guard head.contains("=") || head.contains("*") else { return nil }
+
+    guard let wrap = try? PyRuntime.helper("_wrap") else { return nil }
+    defer { Py_DecRef(wrap) }
+
+    guard let arguments = PyTuple_New(3),
+          let text = PyUnicode_FromString(signature) else {
+        PyErr_Clear()
+        return nil
+    }
+    defer { Py_DecRef(arguments) }
+    // PyTuple_SetItem steals each reference.
+    PyTuple_SetItem(arguments, 0, text)
+    Py_IncRef(raw)
+    PyTuple_SetItem(arguments, 1, raw)
+    PyTuple_SetItem(arguments, 2, docstring.flatMap { PyUnicode_FromString($0) }
+        ?? Py_GetConstant(UInt32(Py_CONSTANT_NONE)))
+
+    guard let function = PyObject_Call(wrap, arguments, nil) else {
+        // A signature the def syntax refuses is a bug in the binding; say so
+        // rather than binding something that ignores its keywords.
+        PyErr_Print()
+        return nil
+    }
+    return function
 }
 
 /// Allocated once per binding and never freed: CPython keeps referring to it

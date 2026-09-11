@@ -183,6 +183,7 @@ struct TypeCreationTests {
 
         try PyRuntime.run("import signature_type_module as m")
         #expect(try PyRuntime.evaluate("m.Greeter.greet.__text_signature__")
-            == "($self, name: str, /)")
+            == "($self, name, /)")
+        #expect(try PyRuntime.evaluate("str(__import__('inspect').signature(m.Greeter().greet))") == "(name, /)")
     }
 }

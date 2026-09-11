@@ -90,10 +90,11 @@ struct ModuleTests {
         }
         try PyRuntime.run("import documented_module; greet = documented_module.greet")
 
-        // A builtin has no __dict__, so __annotations__ cannot be attached --
-        // the text signature is where the types survive.
+        // A builtin has no __dict__ for __annotations__, and inspect refuses a
+        // text signature that carries any: only the names survive.
         #expect(try PyRuntime.evaluate("greet.__text_signature__")
-            == "($module, name: str, /)")
+            == "($module, name, /)")
+        #expect(try PyRuntime.evaluate("str(__import__('inspect').signature(greet))") == "(name, /)")
         #expect(try PyRuntime.evaluate("greet.__doc__").contains("Greets someone."))
         #expect(try PyRuntime.evaluate("hasattr(greet, '__annotations__')") == "False")
     }
