@@ -219,6 +219,12 @@ extension Data: PythonConvertible {
 extension Optional: PythonConvertible where Wrapped: PythonConvertible {
     public static var pyType: PyType { Wrapped.pyType }
 
+    /// Preserve the wrapped type's conversion rules, including int-to-float
+    /// widening. The shared cast handles None for optional values.
+    public static func isConvertible(_ reference: PyRef) -> Bool {
+        Wrapped.isConvertible(reference)
+    }
+
     public func toPython() throws(PythonError) -> PyObject {
         guard let self else { return .none }
         return try self.toPython()

@@ -46,6 +46,19 @@ struct ConversionTests {
         #expect(Int(number) == 1)
     }
 
+    @Test func optionalNumbersUseTheirWrappedConversionRules() throws {
+        let integer = try 10.toPython()
+        #expect(try Double.cast(integer) == 10.0)
+        #expect(try Float.cast(integer) == 10.0)
+        #expect(try Double?.cast(integer) == 10.0)
+        #expect(try Float?.cast(integer) == 10.0)
+        #expect(try Double?.cast(2.5.toPython()) == 2.5)
+        #expect(try Double?.cast(PyObject.none) == nil)
+        #expect(try Float?.cast(PyObject.none) == nil)
+        #expect(throws: PythonError.self) { try Double?.cast("10".toPython()) }
+        #expect(throws: PythonError.self) { try Int?.cast(true.toPython()) }
+    }
+
     @Test func convertsOptionals() throws {
         let nothing: String? = nil
         #expect(try roundTrip(nothing) == "None")

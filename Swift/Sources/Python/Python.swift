@@ -4,6 +4,9 @@ import _apple_support
 import encodings
 import stdlib
 import zlib
+import math
+import _random
+import _sha2
 
 @_exported import struct PythonModules.PythonModule
 
@@ -20,9 +23,9 @@ import Foundation
 @MainActor
 public enum PyRuntime {
     /// The stdlib always linked in: what the interpreter imports while starting,
-    /// plus `zlib`, without which zipped imports and archives do not work.
+    /// plus zlib for archives and the native dependencies of random.
     public static var essentialModules: [PythonModule] {
-        [.encodings, .appleSupport, .stdlib, .zlib]
+        [.encodings, .appleSupport, .stdlib, .zlib, .math, .random, .sha2]
     }
 
     /// The interpreter's version, e.g. `3.16.0a0 (heads/main, ...)`.
