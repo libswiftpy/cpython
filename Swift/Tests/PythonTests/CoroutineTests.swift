@@ -106,6 +106,48 @@ struct CoroutineTests {
         #expect(try PyRuntime.evaluate("answered") == "from Swift")
     }
 
+    /// An error out of `perform` is raised at the await site, where the
+    /// coroutine's own try/except sees it.
+    @Test func anErrorFromPerformIsRaisedAtTheAwait() async throws {
+        let result = try coroutine("""
+        class Work:
+            def __await__(self):
+                import _swiftpy
+                return _swiftpy._awaitable(self)
+
+        try:
+            await Work()
+            caught = 'nothing'
+        except ValueError as error:
+            caught = str(error)
+        """)
+
+        try await PyRuntime.drive(result) { _ in
+            throw PythonError.ValueError("from Swift")
+        }
+        #expect(try PyRuntime.evaluate("caught") == "from Swift")
+    }
+
+    /// Unhandled, it comes back out of drive as the coroutine's failure.
+    @Test func anUnhandledPerformErrorFailsTheDrive() async throws {
+        let result = try coroutine("""
+        class Work:
+            def __await__(self):
+                import _swiftpy
+                return _swiftpy._awaitable(self)
+
+        await Work()
+        """)
+
+        do {
+            try await PyRuntime.drive(result) { _ in throw PythonError.ValueError("unhandled") }
+            Issue.record("expected the drive to fail")
+        } catch {
+            #expect(error.type == "ValueError")
+            #expect(error.value == "unhandled")
+        }
+    }
+
     @Test func anErrorInsideACoroutinePropagates() async throws {
         let result = try coroutine("""
         import _swiftpy

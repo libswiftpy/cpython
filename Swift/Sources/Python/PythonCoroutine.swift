@@ -24,7 +24,8 @@ public extension PyRuntime {
 
     /// Steps a coroutine to completion, handing whatever it suspends on to
     /// `perform` and sending the result back in. The main actor is free while
-    /// that work is in flight.
+    /// that work is in flight. An error from `perform` is raised at the await
+    /// site, where a `try` around it can catch it.
     @MainActor
     @discardableResult
     static func drive(
@@ -32,33 +33,70 @@ public extension PyRuntime {
         perform: @MainActor (PyObject) async throws -> PyObject = { try await performSleep($0) }
     ) async throws(PythonError) -> PyObject {
         // A coroutine that has not started yet can only be sent None.
-        var sent = PyObject.none
+        var step = Step.send(.none)
 
         while true {
-            var produced: PyRef?
-            let status = PyIter_Send(coroutine.reference, sent.reference, &produced)
-
-            if status == PYGEN_ERROR {
-                throw raisedError()
-            }
-            guard let produced else {
-                throw .SystemError("a coroutine produced nothing")
-            }
-            let object = PyObject(consuming: produced)
-
-            // PYGEN_RETURN carries the return value, so there is no
-            // StopIteration to unwrap.
-            if status == PYGEN_RETURN {
-                return object
+            let produced: PyObject
+            switch try resume(coroutine, with: step) {
+            case .returned(let value): return value
+            case .yielded(let request): produced = request
             }
 
             do {
-                sent = try await perform(object)
+                step = .send(try await perform(produced))
             } catch let error as PythonError {
-                throw error
+                step = .throw(error)
             } catch {
-                throw PythonError.RuntimeError("\(error)")
+                step = .throw(.RuntimeError("\(error)"))
             }
+        }
+    }
+
+    private enum Step {
+        case send(PyObject)
+        case `throw`(PythonError)
+    }
+
+    private enum Outcome {
+        case yielded(PyObject)
+        case returned(PyObject)
+    }
+
+    /// One step: `send` for a value, `throw` to raise at the await point.
+    @MainActor
+    private static func resume(_ coroutine: PyObject, with step: Step) throws(PythonError) -> Outcome {
+        switch step {
+        case .send(let value):
+            var produced: PyRef?
+            let status = PyIter_Send(coroutine.reference, value.reference, &produced)
+            if status == PYGEN_ERROR { throw raisedError() }
+            guard let produced else { throw .SystemError("a coroutine produced nothing") }
+            // PYGEN_RETURN carries the return value, so there is no
+            // StopIteration to unwrap.
+            let object = PyObject(consuming: produced)
+            return status == PYGEN_RETURN ? .returned(object) : .yielded(object)
+
+        case .throw(let error):
+            PyAPI.raise(error)
+            guard let exception = PyErr_GetRaisedException(),
+                  let method = PyObject_GetAttrString(coroutine.reference, "throw") else {
+                throw raisedError()
+            }
+            defer { Py_DecRef(exception); Py_DecRef(method) }
+
+            // coroutine.throw() answers like next(): the next request, or
+            // StopIteration carrying the return value, or the error unhandled.
+            if let produced = PyObject_CallOneArg(method, exception) {
+                return .yielded(PyObject(consuming: produced))
+            }
+            // Looked up by name: the C global is not concurrency-safe to read.
+            guard PyErr_ExceptionMatches(exceptionType(named: "StopIteration")) != 0,
+                  let stop = PyErr_GetRaisedException() else {
+                throw raisedError()
+            }
+            defer { Py_DecRef(stop) }
+            let value = PyObject_GetAttrString(stop, "value")
+            return .returned(value.map { PyObject(consuming: $0) } ?? .none)
         }
     }
 
