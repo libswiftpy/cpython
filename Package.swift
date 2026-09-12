@@ -27,7 +27,7 @@ let systemLibraries: [LinkerSetting] = [
     // See Swift/README.md.
     .unsafeFlags(
         ["-liconv", "-ldl", "-lpthread", "-framework", "CoreFoundation"],
-        .when(platforms: [.iOS])
+        .when(platforms: [.iOS, .visionOS])
     ),
     .unsafeFlags(
         ["-ldl", "-lm", "-lutil", "-Xlinker", "-export-dynamic"],
@@ -47,12 +47,16 @@ let moduleSettings: [CSetting] = [
         "-I\(packageDirectory)/Swift/.cpython-dist-iphoneos/include/python",
         "-I\(packageDirectory)/Swift/.cpython-dist-iphoneos/include/python/internal",
     ], .when(platforms: [.iOS])),
+    .unsafeFlags([
+        "-I\(packageDirectory)/Swift/.cpython-dist-xros/include/python",
+        "-I\(packageDirectory)/Swift/.cpython-dist-xros/include/python/internal",
+    ], .when(platforms: [.visionOS])),
 ]
 
 let package = Package(
     name: "cpython",
-    // 15.4 / 18.4 are what isolated `deinit` needs.
-    platforms: [.macOS("15.4"), .iOS("18.4")],
+    // 15.4 / 18.4 / 2.4 are what isolated `deinit` needs.
+    platforms: [.macOS("15.4"), .iOS("18.4"), .visionOS("2.4")],
     products: [
         .library(name: "Python", targets: ["Python"]),
         .executable(name: "pyrun", targets: ["pyrun"]),
