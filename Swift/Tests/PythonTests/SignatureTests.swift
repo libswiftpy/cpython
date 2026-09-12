@@ -47,13 +47,15 @@ struct SignatureTests {
 
     @Test func anAsyncBindingKeepsItsSignatureAndMarker() throws {
         let module = try #require(cpy.newmodule("async_signature_module"))
-        module.asyncDef("fetch(url: str) -> object", docstring: "Fetches a URL.") { _, _ in
+        let signature = "fetch(url: str, timeout: float = None) -> Response"
+        module.asyncDef(signature, docstring: "Fetches a URL.") { _, _ in
             PyAPI.return { nil }
         }
 
         try PyRuntime.run("import async_signature_module as m")
         #expect(try PyRuntime.evaluate("str(__import__('inspect').signature(m.fetch))")
-            == "(url: str) -> object")
+            == "(url: str, timeout: float = None) -> Response")
+        #expect(try PyRuntime.evaluate("m.fetch._interface") == signature)
         #expect(try PyRuntime.evaluate("m.fetch._is_async") == "True")
         #expect(try PyRuntime.evaluate("m.fetch.__doc__") == "Fetches a URL.")
     }

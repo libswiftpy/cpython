@@ -116,6 +116,7 @@ extension PyRuntime {
             exec('def ' + signature + ':\\n    return _raw(' + ', '.join(names) + ')', namespace)
             function = namespace[name]
             function.__doc__ = docstring
+            function._interface = signature
             function._is_async = is_async
             return function
 
