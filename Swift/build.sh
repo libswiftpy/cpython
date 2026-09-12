@@ -75,7 +75,7 @@ cp "$ROOT/Lib/_apple_support.py" "$APPLE_SUPPORT_DIR/"
 STDLIB_MODULES=(
     functools operator types reprlib keyword datetime random bisect pkgutil
     copy copyreg weakref _weakrefset heapq
-    inspect enum dis ast _ast_unparse contextlib annotationlib opcode token tokenize _opcode_metadata
+    inspect enum dis ast _ast_unparse _colorize dataclasses contextlib annotationlib opcode token tokenize _opcode_metadata
     typing
 )
 # json falls back to its Python scanner without _json; re needs only _sre.
