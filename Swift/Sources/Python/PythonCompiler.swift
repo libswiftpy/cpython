@@ -26,26 +26,30 @@ public enum PythonCompiler {
         filename: String = "<string>",
         mode: Mode = .execution
     ) throws(PythonError) -> PyObject {
-        // `single` goes through the helper: CPython's own single input takes
-        // one statement, while a cell is a whole block. See PythonCell.swift.
-        guard mode != .single else {
+        let code: PyObject
+        if mode == .single {
+            // CPython's own single input takes one statement, while a cell is a
+            // whole block. See PythonCell.swift.
             let compileCell = try PyRuntime.helper("_compile_cell")
             defer { Py_DecRef(compileCell) }
-            return PyObject(
+            code = PyObject(
                 consuming: try PyRuntime.call(compileCell, with: [source, filename])
             )
+        } else {
+            // Source with a top-level `await` compiles to a coroutine that
+            // `execute` hands back instead of running. See PythonCoroutine.swift.
+            var flags = PyCompilerFlags(
+                cf_flags: PyCF_ALLOW_TOP_LEVEL_AWAIT,
+                cf_feature_version: 0
+            )
+            guard let reference = Py_CompileStringExFlags(source, filename, mode.start, &flags, -1) else {
+                throw PyRuntime.raisedError()
+            }
+            code = PyObject(consuming: reference)
         }
 
-        // Source with a top-level `await` compiles to a coroutine that
-        // `execute` hands back instead of running. See PythonCoroutine.swift.
-        var flags = PyCompilerFlags(
-            cf_flags: PyCF_ALLOW_TOP_LEVEL_AWAIT,
-            cf_feature_version: 0
-        )
-        guard let code = Py_CompileStringExFlags(source, filename, mode.start, &flags, -1) else {
-            throw PyRuntime.raisedError()
-        }
-        return PyObject(consuming: code)
+        try PyRuntime.cacheSource(source, filename: filename)
+        return code
     }
 }
 

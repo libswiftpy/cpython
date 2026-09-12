@@ -29,9 +29,7 @@ struct SignatureTests {
         #expect(try PyRuntime.evaluate("str(__import__('inspect').signature(m.greet))") == "(name: str, punctuation: str = '!') -> str")
     }
 
-    /// A raw builtin keeps a clinic text signature, which inspect can only read
-    /// without annotations.
-    @Test func aPositionalBindingKeepsAReadableTextSignature() throws {
+    @Test func aBindingAcceptsKeywordsAndKeepsItsSignature() throws {
         let module = try #require(cpy.newmodule("clinic_module"))
         module.def("scale(value: float, factor: float) -> float") { receiver, args in
             PyAPI.return {
@@ -41,8 +39,9 @@ struct SignatureTests {
         }
 
         try PyRuntime.run("import clinic_module")
-        #expect(try PyRuntime.evaluate("str(__import__('inspect').signature(clinic_module.scale))") == "(value, factor, /)")
+        #expect(try PyRuntime.evaluate("str(__import__('inspect').signature(clinic_module.scale))") == "(value: float, factor: float) -> float")
         #expect(try PyRuntime.evaluate("clinic_module.scale(2.0, 1.5)") == "3.0")
+        #expect(try PyRuntime.evaluate("clinic_module.scale(factor=1.5, value=2.0)") == "3.0")
     }
 
     @Test func anAsyncBindingKeepsItsSignatureAndMarker() throws {

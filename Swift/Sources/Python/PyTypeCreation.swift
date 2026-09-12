@@ -267,11 +267,10 @@ public extension PyType {
     }
 }
 
-/// A Python `def` with the binding's own signature, forwarding to `raw`, for
-/// a signature with defaults or star parameters -- CPython's `METH_VARARGS`
-/// hands over positionals only, so keywords and defaults have to be bound by
-/// Python itself. Nil, and nothing to release, when the signature needs none
-/// of that. See `_wrap` in PythonCell.swift.
+/// A Python `def` with the binding's own signature, forwarding to `raw`.
+/// CPython's `METH_VARARGS` hands over positionals only, so Python binds
+/// keywords, defaults, and star parameters before the raw call. See `_wrap`
+/// in PythonCell.swift.
 @MainActor
 func signatureWrapper(
     _ signature: String,
@@ -279,9 +278,6 @@ func signatureWrapper(
     around raw: PyRef,
     isAsync: Bool = false
 ) -> PyRef? {
-    let head = signature.components(separatedBy: "->").first ?? signature
-    guard isAsync || head.contains("=") || head.contains("*") else { return nil }
-
     guard let wrap = try? PyRuntime.helper("_wrap") else { return nil }
     defer { Py_DecRef(wrap) }
 

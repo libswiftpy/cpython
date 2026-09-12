@@ -92,6 +92,15 @@ struct PythonTests {
         #expect(try PyRuntime.evaluate(
             "__import__('annotationlib').get_annotations(type('T', (), {'__annotations__': {'x': 'int | None'}}), format=4)"
         ) == "{'x': 'int | None'}")
+
+        // cProfile is the compatibility entry point for profiling.tracing.
+        #expect(try PyRuntime.evaluate(
+            "(__import__('cProfile').Profile().runcall(sum, [1, 2, 3]), __import__('profiling.tracing', fromlist=['Profile']).Profile is __import__('cProfile').Profile)[1]"
+        ) == "True")
+
+        #expect(try PyRuntime.evaluate(
+            "str(__import__('fractions').Fraction(1, 3) + __import__('fractions').Fraction(1, 6))"
+        ) == "1/2")
     }
 
     @Test func globalStartsTheInterpreter() throws {
@@ -209,7 +218,7 @@ struct PythonTests {
         }
     }
 
-    @Test func cellErrorsCarryATraceback() throws {
+    @Test func cellErrorsUseCPythonTracebacks() throws {
         do {
             let cell = try PythonCompiler.compile("raise ValueError('nope')", filename: "<cell>", mode: .single)
             try PyRuntime.execute(cell)
@@ -217,7 +226,30 @@ struct PythonTests {
         } catch {
             #expect(error.type == "ValueError")
             #expect(error.value == "nope")
-            #expect(error.traceback?.contains("<cell>") == true)
+
+            let traceback = try #require(error.traceback)
+            #expect(traceback.contains("Traceback (most recent call last):"))
+            #expect(traceback.contains("<cell>"))
+            #expect(traceback.contains("ValueError"))
+            #expect(traceback.contains("\u{001B}["))
+        }
+    }
+
+    @Test func cellErrorsIncludeCPythonSuggestions() throws {
+        do {
+            let cell = try PythonCompiler.compile(
+                "items = [1, 2, 3]\nitems.push(4)",
+                filename: "<cell>",
+                mode: .single
+            )
+            try PyRuntime.execute(cell)
+            Issue.record("expected the cell to raise")
+        } catch {
+            let traceback = try #require(error.traceback)
+            #expect(traceback.contains("items.push"))
+            #expect(traceback.contains("^^^^^^^^^^"))
+            #expect(traceback.contains("append"))
+            #expect(traceback.contains("\u{001B}["))
         }
     }
 

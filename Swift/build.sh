@@ -71,15 +71,17 @@ cp "$ROOT/Lib/_apple_support.py" "$APPLE_SUPPORT_DIR/"
 # heapq falls back to its Python path when _heapq is absent.
 # inspect and what it imports come next: rlcompleter and help() read
 # signatures through it. re and tokenize are its lazy imports, left out.
-# datetime uses the _datetime builtin already linked into libpython.
+# datetime uses the _datetime builtin already linked into libpython. cProfile
+# and profiling.tracing use the _lsprof target compiled by SwiftPM.
 STDLIB_MODULES=(
     functools operator types reprlib keyword datetime random bisect pkgutil
     copy copyreg weakref _weakrefset heapq
     inspect enum dis ast _ast_unparse _colorize dataclasses contextlib annotationlib opcode token tokenize _opcode_metadata
-    typing
+    traceback linecache textwrap codeop warnings _py_warnings __future__
+    typing cProfile pstats numbers fractions
 )
 # json falls back to its Python scanner without _json; re needs only _sre.
-STDLIB_PACKAGES=(collections importlib json re)
+STDLIB_PACKAGES=(collections importlib json re profiling pathlib)
 for module in "${STDLIB_MODULES[@]}"; do
     cp "$ROOT/Lib/$module.py" "$STDLIB_DIR/"
 done
