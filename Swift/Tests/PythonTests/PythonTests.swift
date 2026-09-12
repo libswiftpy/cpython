@@ -74,6 +74,11 @@ struct PythonTests {
             "str(__import__('inspect').signature(lambda a, b=1: None))"
         ) == "(a, b=1)")
 
+        // ast.dump imports _colorize lazily, which in turn needs dataclasses.
+        #expect(try PyRuntime.evaluate(
+            "__import__('ast').dump(__import__('ast').parse('x = 1'), indent=2).startswith('Module(')"
+        ) == "True")
+
         // json without _json, re on _sre alone.
         #expect(try PyRuntime.evaluate("__import__('json').dumps({'a': [1, None]})") == #"{"a": [1, null]}"#)
         #expect(try PyRuntime.evaluate("__import__('re').sub(r'\\d+', '#', 'a1b22')") == "a#b#")
