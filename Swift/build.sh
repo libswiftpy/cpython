@@ -90,6 +90,9 @@ for package in "${STDLIB_PACKAGES[@]}"; do
 done
 # The `python -m json.tool` CLI, which drags argparse in.
 rm -f "$STDLIB_DIR/json/tool.py"
+# The sampling profiler needs a second process and ships ~1 MB of vendored
+# web assets; only profiling.tracing (cProfile) is usable embedded.
+rm -rf "$STDLIB_DIR/profiling/sampling"
 
 # Link flags, read out of CPython's own build configuration rather than
 # hard-coded per platform; compare them with Package.swift if linking fails.
