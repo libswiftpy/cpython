@@ -79,6 +79,9 @@ public enum PyRuntime {
         configuration.module_search_paths_set = 1
         configuration.site_import = 0
         configuration.install_signal_handlers = 0
+        // Never write __pycache__ next to the staged sources: they would end up
+        // in the resource bundles as dead weight.
+        configuration.write_bytecode = 0
         try check(Py_InitializeFromConfig(&configuration))
 
         // Built here rather than on first use, so `import _swiftpy` works from
