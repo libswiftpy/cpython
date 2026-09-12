@@ -336,7 +336,7 @@ then
 	*-*-cygwin*)
 		ac_sys_system=Cygwin
 		;;
-	*-apple-ios*)
+	*-apple-ios*|*-apple-xros*)
 		ac_sys_system=iOS
 		;;
 	*-*-darwin*)
@@ -432,6 +432,8 @@ if test -z "$AR"; then
 		aarch64-apple-ios*-simulator) AR=arm64-apple-ios-simulator-ar ;;
 		aarch64-apple-ios*)           AR=arm64-apple-ios-ar ;;
 		x86_64-apple-ios*-simulator)  AR=x86_64-apple-ios-simulator-ar ;;
+		aarch64-apple-xros*-simulator) AR=arm64-apple-xros-simulator-ar ;;
+		aarch64-apple-xros*)           AR=arm64-apple-xros-ar ;;
 		*)
 	esac
 fi
@@ -440,6 +442,8 @@ if test -z "$CC"; then
 		aarch64-apple-ios*-simulator) CC=arm64-apple-ios-simulator-clang ;;
 		aarch64-apple-ios*)           CC=arm64-apple-ios-clang ;;
 		x86_64-apple-ios*-simulator)  CC=x86_64-apple-ios-simulator-clang ;;
+		aarch64-apple-xros*-simulator) CC=arm64-apple-xros-simulator-clang ;;
+		aarch64-apple-xros*)           CC=arm64-apple-xros-clang ;;
 		*)
 	esac
 fi
@@ -448,6 +452,8 @@ if test -z "$CPP"; then
 		aarch64-apple-ios*-simulator) CPP=arm64-apple-ios-simulator-cpp ;;
 		aarch64-apple-ios*)           CPP=arm64-apple-ios-cpp ;;
 		x86_64-apple-ios*-simulator)  CPP=x86_64-apple-ios-simulator-cpp ;;
+		aarch64-apple-xros*-simulator) CPP=arm64-apple-xros-simulator-cpp ;;
+		aarch64-apple-xros*)           CPP=arm64-apple-xros-cpp ;;
 		*)
 	esac
 fi
@@ -456,6 +462,8 @@ if test -z "$CXX"; then
 		aarch64-apple-ios*-simulator) CXX=arm64-apple-ios-simulator-clang++ ;;
 		aarch64-apple-ios*)           CXX=arm64-apple-ios-clang++ ;;
 		x86_64-apple-ios*-simulator)  CXX=x86_64-apple-ios-simulator-clang++ ;;
+		aarch64-apple-xros*-simulator) CXX=arm64-apple-xros-simulator-clang++ ;;
+		aarch64-apple-xros*)           CXX=arm64-apple-xros-clang++ ;;
 		*)
 	esac
 fi
@@ -789,14 +797,17 @@ if test "$cross_compiling" = yes; then
 	*-*-cygwin*)
 		_host_ident=
 		;;
-	*-apple-ios*)
+	*-apple-ios*|*-apple-xros*)
 		_host_os=`echo $host | cut -d '-' -f3`
 		_host_device=`echo $host | cut -d '-' -f4`
 		_host_device=${_host_device:=os}
 
 		# IPHONEOS_DEPLOYMENT_TARGET is the minimum supported iOS version
 		AC_MSG_CHECKING([iOS deployment target])
-		IPHONEOS_DEPLOYMENT_TARGET=$(echo ${_host_os} | cut -c4-)
+		case "$_host_os" in
+			xros*) IPHONEOS_DEPLOYMENT_TARGET=$(echo ${_host_os} | cut -c5-) ;;
+			*)     IPHONEOS_DEPLOYMENT_TARGET=$(echo ${_host_os} | cut -c4-) ;;
+		esac
 		IPHONEOS_DEPLOYMENT_TARGET=${IPHONEOS_DEPLOYMENT_TARGET:=13.0}
 		AC_MSG_RESULT([$IPHONEOS_DEPLOYMENT_TARGET])
 
@@ -1004,6 +1015,8 @@ AS_CASE([$host],
     AS_VAR_APPEND([CFLAGS], [" -mios-version-min=${IPHONEOS_DEPLOYMENT_TARGET}"])
     AS_VAR_APPEND([LDFLAGS], [" -mios-version-min=${IPHONEOS_DEPLOYMENT_TARGET}"])
   ],
+  dnl visionOS: the compiler wrapper's -target already carries the version.
+  [*-apple-xros*], [],
 )
 
 if test "$ac_sys_system" = "Darwin"
