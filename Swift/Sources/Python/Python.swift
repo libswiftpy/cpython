@@ -7,6 +7,7 @@ import zlib
 import math
 import _random
 import _sha2
+import _lsprof
 
 @_exported import struct PythonModules.PythonModule
 
@@ -25,7 +26,7 @@ public enum PyRuntime {
     /// The stdlib always linked in: what the interpreter imports while starting,
     /// plus zlib for archives and the native dependencies of random.
     public static var essentialModules: [PythonModule] {
-        [.encodings, .appleSupport, .stdlib, .zlib, .math, .random, .sha2]
+        [.encodings, .appleSupport, .stdlib, .zlib, .math, .random, .sha2, .lsprof]
     }
 
     /// The interpreter's version, e.g. `3.16.0a0 (heads/main, ...)`.
@@ -176,4 +177,3 @@ public enum PyRuntime {
         return String(cString: utf8)
     }
 }
-

@@ -100,7 +100,7 @@ let package = Package(
         // A thin Swift face on top of it.
         .target(
             name: "Python",
-            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlib", "math", "_random", "_sha2"],
+            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlib", "math", "_random", "_sha2", "_lsprof"],
             path: "Swift/Sources/Python",
             linkerSettings: systemLibraries
         ),
@@ -163,6 +163,21 @@ let package = Package(
             name: "_sha2",
             dependencies: ["PythonModules", "Csha2"],
             path: "Swift/Sources/_sha2"
+        ),
+
+        // Native dependency of cProfile and profiling.tracing.
+        .target(
+            name: "Clsprof",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["_lsprof.c", "rotatingtree.c", "_swiftpy/_lsprof/shim.c"],
+            publicHeadersPath: "_swiftpy/_lsprof",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "_lsprof",
+            dependencies: ["PythonModules", "Clsprof"],
+            path: "Swift/Sources/_lsprof"
         ),
 
         .executableTarget(name: "pyrun", dependencies: ["Python"], path: "Swift/Sources/pyrun"),

@@ -48,6 +48,13 @@ extension PyRuntime {
         return PyUnicode_AsUTF8(text).map(String.init(cString:))
     }
 
+    static func cacheSource(_ source: String, filename: String) throws(PythonError) {
+        let cache = try helper("_cache_source")
+        defer { Py_DecRef(cache) }
+        let result = try call(cache, with: [source, filename])
+        Py_DecRef(result)
+    }
+
     /// The `_swiftpy` module, holding what is easier to write in Python than
     /// through the C API. Built on first use and kept for the process lifetime.
     private static var helpers: PyRef?
@@ -98,10 +105,9 @@ extension PyRuntime {
         def sleep(seconds):
             return _SwiftAwaitable(seconds)
 
-        # The def standing in front of a binding whose signature has defaults or
-        # star parameters. CPython's own argument binding then does what
-        # pocketpy's py_bind does: keywords by name, defaults filled, *args
-        # one tuple, **kwargs one dict, all handed on in declaration order.
+        # The def standing in front of a binding. CPython's own argument binding
+        # does what pocketpy's py_bind does: keywords by name, defaults filled,
+        # *args one tuple, **kwargs one dict, all handed on in declaration order.
         def _wrap(signature, raw, docstring, is_async=False):
             import ast
             name = signature[:signature.index('(')].strip()
@@ -120,15 +126,17 @@ extension PyRuntime {
             function._is_async = is_async
             return function
 
+        def _cache_source(source, filename):
+            import linecache
+            linecache.cache[filename] = (
+                len(source),
+                None,
+                source.splitlines(keepends=True),
+                filename,
+            )
+
         def _format_exception(exception):
-            lines = ['Traceback (most recent call last):\\n']
-            traceback = exception.__traceback__
-            while traceback is not None:
-                code = traceback.tb_frame.f_code
-                lines.append('  File "%s", line %d, in %s\\n'
-                             % (code.co_filename, traceback.tb_lineno, code.co_name))
-                traceback = traceback.tb_next
-            lines.append('%s: %s\\n' % (type(exception).__name__, exception))
-            return ''.join(lines)
+            import traceback
+            return ''.join(traceback.format_exception(exception, colorize=True))
         """
 }
