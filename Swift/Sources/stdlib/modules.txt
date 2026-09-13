@@ -15,7 +15,7 @@ copy copyreg weakref _weakrefset heapq collections
 
 # inspect and what it imports: rlcompleter and help() read signatures through
 # it. importlib for pkgutil and import_module.
-inspect enum dis ast _ast_unparse _colorize dataclasses contextlib annotationlib
+rlcompleter inspect enum dis ast _ast_unparse _colorize dataclasses contextlib annotationlib
 opcode token tokenize _opcode_metadata importlib
 
 # tracebacks and the compiler-facing modules the console uses.
