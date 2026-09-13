@@ -8,6 +8,18 @@ import math
 import _random
 import _sha2
 import _lsprof
+import _struct
+import binascii
+import _csv
+import array
+import cmathmodule
+import _md5
+import _sha1
+import _sha3
+import _blake2
+import _sqlite3
+import unicodedata
+import pyexpat
 
 @_exported import struct PythonModules.PythonModule
 
@@ -24,9 +36,11 @@ import Foundation
 @MainActor
 public enum PyRuntime {
     /// The stdlib always linked in: what the interpreter imports while starting,
-    /// plus zlib for archives and the native dependencies of random.
+    /// plus the C modules behind the pure-Python stdlib the package ships.
     public static var essentialModules: [PythonModule] {
-        [.encodings, .appleSupport, .stdlib, .zlib, .math, .random, .sha2, .lsprof]
+        [.encodings, .appleSupport, .stdlib, .zlib, .math, .random, .sha2, .lsprof,
+         .struct, .binascii, .csv, .array, .cmath, .md5, .sha1, .sha3, .blake2,
+         .sqlite3, .unicodedata, .pyexpat]
     }
 
     /// The interpreter's version, e.g. `3.16.0a0 (heads/main, ...)`.
@@ -61,6 +75,11 @@ public enum PyRuntime {
                 throw .SystemError("could not register \(builtin.name)")
             }
         }
+
+        // zoneinfo asks sysconfig for the tz database, and sysconfig has no
+        // build data here; the isolated config ignores PYTHON* variables, but
+        // os.environ still carries this one to zoneinfo.
+        setenv("PYTHONTZPATH", "/usr/share/zoneinfo", 1)
 
         var configuration = PyConfig()
         PyConfig_InitIsolatedConfig(&configuration)
