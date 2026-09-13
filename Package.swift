@@ -110,7 +110,7 @@ let package = Package(
         // A thin Swift face on top of it.
         .target(
             name: "Python",
-            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlib", "math", "_random", "_sha2", "_lsprof",
+            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlibmodule", "math", "_random", "_sha2", "_lsprof",
                            "_struct", "binascii", "_csv", "array", "cmathmodule", "_md5", "_sha1", "_sha3", "_blake2", "_sqlite3", "unicodedata", "pyexpat"],
             path: "Swift/Sources/Python",
             linkerSettings: systemLibraries
@@ -127,10 +127,12 @@ let package = Package(
             cSettings: moduleSettings,
             linkerSettings: [.linkedLibrary("z")]
         ),
+        // Not `zlib`: Xcode would take that for the SDK's zlib module that
+        // zlibmodule.c includes, and warn that Czlib is missing a dependency.
         .target(
-            name: "zlib",
+            name: "zlibmodule",
             dependencies: ["PythonModules", "Czlib"],
-            path: "Swift/Sources/zlib"
+            path: "Swift/Sources/zlibmodule"
         ),
 
         // Native dependencies of the bundled random module.

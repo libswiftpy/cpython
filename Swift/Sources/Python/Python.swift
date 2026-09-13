@@ -3,7 +3,7 @@ import PythonModules
 import _apple_support
 import encodings
 import stdlib
-import zlib
+import zlibmodule
 import math
 import _random
 import _sha2
