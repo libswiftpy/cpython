@@ -38,6 +38,9 @@ import Testing
         assert statistics.mean([1, 2, 3]) == 2 and decimal.Decimal('0.1') + decimal.Decimal('0.2') == decimal.Decimal('0.3')
         assert timeit.timeit('1+1', number=10) >= 0
         import zoneinfo; zoneinfo.ZoneInfo('Europe/Budapest')
+        # Loaded from the zip as bytecode, docstrings and signatures intact.
+        assert json.__spec__.origin.endswith('stdlib.zip/json/__init__.pyc'), json.__spec__.origin
+        assert 'Serialize' in json.dumps.__doc__ and str(__import__('inspect').signature(json.dumps)).startswith('(obj, *,')
         assert not failed, failed
         """)
     }

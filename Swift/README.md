@@ -10,7 +10,9 @@ CPython *is* the Swift package; everything it adds lives here in `Swift/`.
 | Path | What it is |
 | --- | --- |
 | `../Package.swift` | Package manifest: target paths, link flags |
-| `Swift/build.sh` | Builds CPython, stages `.cpython-dist` (headers, `libpython.a`) and the stdlib resource |
+| `Swift/build.sh` | Builds CPython, stages `.cpython-dist` (headers, `libpython.a`), `encodings` and `_apple_support` |
+| `Swift/Sources/stdlib/modules.txt` | The rest of the pure-Python stdlib to ship, with what each group costs |
+| `Plugins/StageStdlib/` | Build tool plugin: zips that list as bytecode into the `stdlib` target's resource |
 | `Swift/Sources/PythonEncodings/` | The `encodings` package, staged by `build.sh` as that target's resource |
 | `Swift/Sources/PythonAppleSupport/` | `_apple_support.py`, likewise |
 | `Swift/Sources/CPython/module.modulemap` | Makes `Python.h` importable from Swift as `import CPython` |
@@ -108,10 +110,12 @@ over `STDOUT_FILENO` instead.
 
 Nothing to do: the bundled stdlib is a **resource of a Swift target** --
 `encodings` and `_apple_support` have one each, because the interpreter needs
-them while starting, and everything else shares the `stdlib` target. SwiftPM
+them while starting, and everything else is `stdlib.zip` in the `stdlib`
+target: bytecode only, built at compile time by the `StageStdlib` plugin from
+`modules.txt`, loaded by `zipimport` without a compile or an unzip. SwiftPM
 packs them into `cpython_*.bundle`s, and Xcode embeds those in
 `YourApp.app/Contents/Resources`. `Python.initialize()` puts their
-`Bundle.module` directories on `sys.path`, which a sandboxed app can read —
+`Bundle.module` paths on `sys.path`, which a sandboxed app can read —
 unlike the CPython checkout the package was built from, which the App Sandbox
 blocks (the symptom is a correct-looking path configuration followed by
 `Failed to import encodings module`).
