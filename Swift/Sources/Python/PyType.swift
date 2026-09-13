@@ -10,6 +10,11 @@ public struct PyType: Hashable {
 
     public let name: String
 
+    init(reference: PyRef, name: String) {
+        self.reference = reference
+        self.name = name
+    }
+
     /// Looks a type up in `builtins`, which is where `int`, `str` and the rest
     /// live. The interpreter has to be running.
     @MainActor
@@ -19,6 +24,20 @@ public struct PyType: Hashable {
             preconditionFailure("builtins.\(name) is missing; is the interpreter running?")
         }
         return PyType(reference: type, name: name)
+    }
+
+    /// A type read off a live object, e.g. `pathlib.PurePath`; `nil` when the
+    /// object is not a type. The caller keeps the object alive.
+    @MainActor
+    public init?(_ object: some PyReferencing) {
+        let reference = object.reference
+        guard PyType_Check(reference) != 0,
+              let name = PyType_GetName(UnsafeMutableRawPointer(reference).assumingMemoryBound(to: PyTypeObject.self)) else {
+            PyErr_Clear()
+            return nil
+        }
+        defer { Py_DecRef(name) }
+        self.init(reference: reference, name: PyUnicode_AsUTF8(name).map { String(cString: $0) } ?? "?")
     }
 
     /// The type as an object, which is what putting it in a module, or writing

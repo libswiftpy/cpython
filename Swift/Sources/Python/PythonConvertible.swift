@@ -30,7 +30,9 @@ public protocol PythonConvertible {
 
 public extension PythonConvertible {
     static func isConvertible(_ reference: PyRef) -> Bool {
-        pyType.isExactType(of: reference) || pyType.isInstance(reference)
+        if pyType.isExactType(of: reference) || pyType.isInstance(reference) { return true }
+        // A stand-in the host registered, e.g. a Path where a str is expected.
+        return PyBridge.implicitCasts[pyType]?.contains { $0.isInstance(reference) } ?? false
     }
 
     /// Converts a Python object, or `nil` when it is not this type.
@@ -88,11 +90,15 @@ extension String: PythonConvertible {
     }
 
     public static func fromPython(_ reference: PyRef) -> String {
-        guard let utf8 = PyUnicode_AsUTF8(reference) else {
-            PyErr_Clear()
-            return ""
+        if let utf8 = PyUnicode_AsUTF8(reference) {
+            return String(cString: utf8)
         }
-        return String(cString: utf8)
+        PyErr_Clear()
+        // Keyed by the registered base, so a subclass instance matches too.
+        if let convert = PyBridge.stringConversions.first(where: { $0.key.isInstance(reference) })?.value {
+            return convert(reference)
+        }
+        return ""
     }
 }
 
