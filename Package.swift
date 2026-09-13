@@ -91,14 +91,20 @@ let package = Package(
             resources: [.copy("_apple_support.py")]
         ),
 
-        // The rest of the pure-Python stdlib the package ships, in one bundle
-        // rather than one per module: the list is meant to grow, and the plan
-        // is a zip on sys.path once it does.
+        // The rest of the pure-Python stdlib the package ships, as one zip on
+        // sys.path: zipimport loads the bytecode in it without a compile.
+        // The plugin builds it from Swift/Sources/stdlib/modules.txt.
         .target(
             name: "stdlib",
             dependencies: ["PythonModules"],
             path: "Swift/Sources/stdlib",
-            resources: [.copy("stdlib")]
+            exclude: ["modules.txt"],
+            plugins: [.plugin(name: "StageStdlib")]
+        ),
+        .plugin(
+            name: "StageStdlib",
+            capability: .buildTool(),
+            path: "Plugins/StageStdlib"
         ),
 
         // A thin Swift face on top of it.

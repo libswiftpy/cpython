@@ -1,0 +1,69 @@
+# The pure-Python stdlib the package ships, zipped by the StageStdlib plugin
+# with bytecode next to each source. One name per word, file or package
+# alike; a `-` prefix prunes a path inside a listed package. Everything else
+# the interpreter needs at start-up (os, io, abc, codecs, ...) is frozen into
+# libpython; encodings and _apple_support are staged by build.sh, because
+# they are needed before a zip on sys.path is.
+#
+# Sizes are of the source as staged (uncompressed, before zipping), so a
+# group can be weighed and dropped as one when size matters more than reach.
+
+# functools and what it reaches at import time, plus what collections defers
+# with 3.15's lazy import; heapq falls back to Python without _heapq.
+functools operator types reprlib keyword datetime random bisect pkgutil
+copy copyreg weakref _weakrefset heapq collections
+
+# inspect and what it imports: rlcompleter and help() read signatures through
+# it. importlib for pkgutil and import_module.
+inspect enum dis ast _ast_unparse _colorize dataclasses contextlib annotationlib
+opcode token tokenize _opcode_metadata importlib
+
+# tracebacks and the compiler-facing modules the console uses.
+traceback linecache textwrap codeop warnings _py_warnings __future__
+
+# typing, numbers; cProfile and profiling.tracing use the _lsprof target.
+# The sampling profiler needs a second process and ships ~1 MB of vendored web
+# assets; only profiling.tracing is usable embedded. json falls back to its
+# Python scanner without _json; re needs only _sre.
+typing cProfile pstats numbers fractions profiling json re pathlib
+-profiling/sampling
+-json/tool.py
+
+# --- Optional from here on: 2.3 MB in all. ---
+
+# text and numbers, 480 KB: decimal is 230 KB of that (_pydecimal; there is
+# no _decimal) and statistics needs it.
+timeit statistics decimal _pydecimal _pylong contextvars pprint difflib string
+
+# files, 350 KB: zoneinfo reads the system tz database and asks sysconfig
+# where (PYTHONTZPATH, set in Python.swift); tempfile and shutil back zipfile
+# and tarfile.
+shutil glob fnmatch tempfile calendar gettext locale zoneinfo sysconfig
+-sysconfig/__main__.py
+
+# formats, 1.3 MB -- xml is 340 KB, zipfile 110, html 110: base64 and zipfile
+# need binascii and struct, csv needs _csv, plistlib and xml need pyexpat,
+# gzip the compression package. urllib keeps only its parsing half (requests
+# are a Swift binding); compression only gzip and zlib.
+base64 struct csv pickle _compat_pickle tarfile gzip plistlib
+configparser ipaddress mimetypes shlex graphlib colorsys _strptime _markupbase
+zipfile compression urllib html tomllib xml sqlite3
+-zipfile/__main__.py
+-compression/bz2.py -compression/lzma.py -compression/zstd
+-urllib/request.py -urllib/response.py -urllib/robotparser.py -urllib/error.py
+-tomllib/mypy.ini
+
+# secrets, 70 KB: hashlib is complete with the _md5/_sha1/_sha3/_blake2
+# targets; hmac and secrets build on it.
+hashlib hmac secrets uuid
+
+# scripts and tests, 280 KB, unittest 170 of it: argparse for CLI-style code;
+# unittest needs signal and drops mock (120 KB). doctest would need pdb.
+argparse signal unittest
+-unittest/mock.py -unittest/__main__.py
+
+# threads, 260 KB, logging 80 and concurrent 100 of it: nothing runs in
+# parallel (the GIL never moves), but logging, asyncio and concurrent.futures
+# import these. logging keeps its core: handlers and config need sockets.
+threading _threading_local queue logging concurrent
+-logging/config.py -logging/handlers.py -concurrent/interpreters
