@@ -33,6 +33,11 @@ export PATH="$ROOT/Platforms/Apple/iOS/Resources/bin:$PATH"
 
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
+# The SDK declares these, but the platform never lets a process spawn another,
+# so leave os.fork and friends out of the build rather than out of reach.
+export ac_cv_func_fork=no ac_cv_func_fork1=no ac_cv_func_vfork=no ac_cv_func_forkpty=no ac_cv_lib_util_forkpty=no \
+       ac_cv_func_execv=no ac_cv_func_posix_spawn=no ac_cv_func_posix_spawnp=no \
+       ac_cv_func_chroot=no ac_cv_func_setuid=no ac_cv_func_setgid=no
 if [ ! -f Makefile ]; then
     "$ROOT/configure" \
         --host="$HOST" \
@@ -41,7 +46,8 @@ if [ ! -f Makefile ]; then
         --enable-framework="$BUILD_DIR/Frameworks" \
         --disable-test-modules \
         --without-ensurepip \
-        --without-doc-strings
+        --without-doc-strings \
+        --without-remote-debug
 fi
 
 VERSION=$(sed -n 's/^VERSION=[[:space:]]*//p' Makefile | head -1)
