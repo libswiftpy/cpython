@@ -22,7 +22,8 @@ if [ ! -f Makefile ]; then
         --disable-shared \
         --disable-test-modules \
         --without-ensurepip \
-        --without-doc-strings
+        --without-doc-strings \
+        --without-remote-debug  # sys.remote_exec: task_for_pid, useless embedded
 fi
 make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 
