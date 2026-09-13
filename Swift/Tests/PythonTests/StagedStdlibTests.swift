@@ -31,6 +31,11 @@ import Testing
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z: z.writestr('a.txt', 'hello')
         with zipfile.ZipFile(io.BytesIO(buf.getvalue())) as z: assert z.read('a.txt') == b'hello'
+        # Console completion uses the stdlib rlcompleter; no readline in the embedded build.
+        import rlcompleter
+        assert not rlcompleter._readline_available
+        assert rlcompleter.Completer({'sys': sys}).complete('sys.plat', 0) == 'sys.platform'
+        assert rlcompleter.Completer({}).complete('', 0) == '\\t'
         import xml.etree.ElementTree as ET
         assert ET.fromstring('<a><b>1</b></a>').find('b').text == '1'
         assert 'hello'.encode('utf-16').decode('utf-16') == 'hello'
