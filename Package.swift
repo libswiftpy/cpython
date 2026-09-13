@@ -104,7 +104,8 @@ let package = Package(
         // A thin Swift face on top of it.
         .target(
             name: "Python",
-            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlib", "math", "_random", "_sha2", "_lsprof"],
+            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlib", "math", "_random", "_sha2", "_lsprof",
+                           "_struct", "binascii", "_csv", "array", "cmathmodule", "_md5", "_sha1", "_sha3", "_blake2", "_sqlite3", "unicodedata", "pyexpat"],
             path: "Swift/Sources/Python",
             linkerSettings: systemLibraries
         ),
@@ -182,6 +183,187 @@ let package = Package(
             name: "_lsprof",
             dependencies: ["PythonModules", "Clsprof"],
             path: "Swift/Sources/_lsprof"
+        ),
+
+        // Optional C modules, each with its size once linked (code + data,
+        // arm64) so the trade-off stays visible; drop one together with the
+        // Python modules that import it. Small ones behind common imports
+        // first: _struct 80 KB, binascii 90, _csv 60, array 110, cmath 60.
+        .target(
+            name: "Cstruct",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["_struct.c", "_swiftpy/_struct/shim.c"],
+            publicHeadersPath: "_swiftpy/_struct",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "_struct",
+            dependencies: ["PythonModules", "Cstruct"],
+            path: "Swift/Sources/_struct"
+        ),
+
+        .target(
+            name: "Cbinascii",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["binascii.c", "_swiftpy/binascii/shim.c"],
+            publicHeadersPath: "_swiftpy/binascii",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "binascii",
+            dependencies: ["PythonModules", "Cbinascii"],
+            path: "Swift/Sources/binascii"
+        ),
+
+        .target(
+            name: "Ccsv",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["_csv.c", "_swiftpy/_csv/shim.c"],
+            publicHeadersPath: "_swiftpy/_csv",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "_csv",
+            dependencies: ["PythonModules", "Ccsv"],
+            path: "Swift/Sources/_csv"
+        ),
+
+        .target(
+            name: "Carray",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["arraymodule.c", "_swiftpy/array/shim.c"],
+            publicHeadersPath: "_swiftpy/array",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "array",
+            dependencies: ["PythonModules", "Carray"],
+            path: "Swift/Sources/array"
+        ),
+
+        .target(
+            name: "Ccmath",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["cmathmodule.c", "_swiftpy/cmath/shim.c"],
+            publicHeadersPath: "_swiftpy/cmath",
+            cSettings: moduleSettings
+        ),
+        // Not `cmath`: that and the math module's `Cmath` collide on a
+        // case-insensitive file system.
+        .target(
+            name: "cmathmodule",
+            dependencies: ["PythonModules", "Ccmath"],
+            path: "Swift/Sources/cmathmodule"
+        ),
+
+        // The rest of hashlib, so md5/sha1/sha3/blake2 work and not only sha2:
+        // _md5 40 KB, _sha1 30, _sha3 120, _blake2 310.
+        .target(
+            name: "Cmd5",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["md5module.c", "_hacl/Hacl_Hash_MD5.c", "_swiftpy/_md5/shim.c"],
+            publicHeadersPath: "_swiftpy/_md5",
+            cSettings: moduleSettings + [.headerSearchPath("_hacl"), .headerSearchPath("_hacl/include")]
+        ),
+        .target(
+            name: "_md5",
+            dependencies: ["PythonModules", "Cmd5"],
+            path: "Swift/Sources/_md5"
+        ),
+
+        .target(
+            name: "Csha1",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["sha1module.c", "_hacl/Hacl_Hash_SHA1.c", "_swiftpy/_sha1/shim.c"],
+            publicHeadersPath: "_swiftpy/_sha1",
+            cSettings: moduleSettings + [.headerSearchPath("_hacl"), .headerSearchPath("_hacl/include")]
+        ),
+        .target(
+            name: "_sha1",
+            dependencies: ["PythonModules", "Csha1"],
+            path: "Swift/Sources/_sha1"
+        ),
+
+        .target(
+            name: "Csha3",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["sha3module.c", "_hacl/Hacl_Hash_SHA3.c", "_swiftpy/_sha3/shim.c"],
+            publicHeadersPath: "_swiftpy/_sha3",
+            cSettings: moduleSettings + [.headerSearchPath("_hacl"), .headerSearchPath("_hacl/include")]
+        ),
+        .target(
+            name: "_sha3",
+            dependencies: ["PythonModules", "Csha3"],
+            path: "Swift/Sources/_sha3"
+        ),
+
+        .target(
+            name: "Cblake2",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["blake2module.c", "_hacl/Hacl_Hash_Blake2s.c", "_hacl/Hacl_Hash_Blake2b.c", "_hacl/Lib_Memzero0.c", "_swiftpy/_blake2/shim.c"],
+            publicHeadersPath: "_swiftpy/_blake2",
+            cSettings: moduleSettings + [.headerSearchPath("_hacl"), .headerSearchPath("_hacl/include")]
+        ),
+        .target(
+            name: "_blake2",
+            dependencies: ["PythonModules", "Cblake2"],
+            path: "Swift/Sources/_blake2"
+        ),
+
+        // sqlite3 against the system libsqlite3, so the module is 220 KB.
+        .target(
+            name: "Csqlite3",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["_sqlite/blob.c", "_sqlite/connection.c", "_sqlite/cursor.c", "_sqlite/microprotocols.c", "_sqlite/module.c", "_sqlite/prepare_protocol.c", "_sqlite/row.c", "_sqlite/statement.c", "_sqlite/util.c", "_swiftpy/_sqlite3/shim.c"],
+            publicHeadersPath: "_swiftpy/_sqlite3",
+            cSettings: moduleSettings + [.headerSearchPath("_sqlite")],
+            linkerSettings: [.linkedLibrary("sqlite3")]
+        ),
+        .target(
+            name: "_sqlite3",
+            dependencies: ["PythonModules", "Csqlite3"],
+            path: "Swift/Sources/_sqlite3"
+        ),
+
+        // unicodedata carries the Unicode database: 740 KB, the largest here.
+        .target(
+            name: "Cunicodedata",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["unicodedata.c", "_swiftpy/unicodedata/shim.c"],
+            publicHeadersPath: "_swiftpy/unicodedata",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "unicodedata",
+            dependencies: ["PythonModules", "Cunicodedata"],
+            path: "Swift/Sources/unicodedata"
+        ),
+
+        // pyexpat bundles expat, 520 KB; xml.etree, xml.dom and plistlib parse
+        // through it.
+        .target(
+            name: "Cpyexpat",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["pyexpat.c", "expat/xmlparse.c", "expat/xmlrole.c", "expat/xmltok.c", "_swiftpy/pyexpat/shim.c"],
+            publicHeadersPath: "_swiftpy/pyexpat",
+            cSettings: moduleSettings + [.headerSearchPath("expat")]
+        ),
+        .target(
+            name: "pyexpat",
+            dependencies: ["PythonModules", "Cpyexpat"],
+            path: "Swift/Sources/pyexpat"
         ),
 
         .executableTarget(name: "pyrun", dependencies: ["Python"], path: "Swift/Sources/pyrun"),

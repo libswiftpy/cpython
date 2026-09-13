@@ -56,6 +56,17 @@ cp "$ROOT"/Lib/encodings/__init__.py \
    "$ROOT"/Lib/encodings/latin_1.py \
    "$ROOT"/Lib/encodings/ascii.py \
    "$ENCODINGS_DIR/"
+# The rest a text app meets in the wild, 140 KB: UTF-16/32 and BOM-prefixed
+# UTF-8 for files, cp1252 and mac_roman for legacy text, cp437 for zip entry
+# names, idna for URLs, the escape codecs for str methods. CJK code pages need C codecs and stay out.
+cp "$ROOT"/Lib/encodings/utf_8_sig.py \
+   "$ROOT"/Lib/encodings/utf_16.py "$ROOT"/Lib/encodings/utf_16_be.py "$ROOT"/Lib/encodings/utf_16_le.py \
+   "$ROOT"/Lib/encodings/utf_32.py "$ROOT"/Lib/encodings/utf_32_be.py "$ROOT"/Lib/encodings/utf_32_le.py \
+   "$ROOT"/Lib/encodings/cp1252.py "$ROOT"/Lib/encodings/mac_roman.py "$ROOT"/Lib/encodings/charmap.py \
+   "$ROOT"/Lib/encodings/cp437.py \
+   "$ROOT"/Lib/encodings/idna.py "$ROOT"/Lib/encodings/punycode.py \
+   "$ROOT"/Lib/encodings/unicode_escape.py "$ROOT"/Lib/encodings/raw_unicode_escape.py \
+   "$ENCODINGS_DIR/"
 
 # 3.16 and later only; `encodings` does not reach for it before that.
 if [ -f "$ROOT/Lib/encodings/_iconv_codecs.py" ]; then
@@ -83,6 +94,39 @@ STDLIB_MODULES=(
 )
 # json falls back to its Python scanner without _json; re needs only _sre.
 STDLIB_PACKAGES=(collections importlib json re profiling pathlib)
+
+# Everything below is optional: pure Python that only costs the bytes listed
+# (uncompressed, as staged; 2.3 MB in all), grouped so a group can be dropped
+# as one when size matters more than reach. The C modules some of them need
+# are SwiftPM targets in Package.swift, with their sizes noted there.
+STDLIB_MODULES+=(
+    # text and numbers, 480 KB: decimal is 230 KB of that (_pydecimal; there
+    # is no _decimal) and statistics needs it; string is the package below.
+    timeit statistics decimal _pydecimal _pylong contextvars pprint difflib
+    # files, 350 KB with the zoneinfo and sysconfig packages below: zoneinfo
+    # reads the system tz database (PYTHONTZPATH, set in Python.swift);
+    # tempfile and shutil back zipfile and tarfile.
+    shutil glob fnmatch tempfile calendar gettext locale
+    # formats, 1.3 MB with the packages below -- xml is 340 KB, zipfile 110,
+    # html 110: base64 and zipfile need binascii and struct, csv needs _csv,
+    # plistlib and xml need pyexpat, gzip the compression package.
+    base64 struct csv pickle _compat_pickle tarfile gzip plistlib
+    configparser ipaddress mimetypes shlex graphlib colorsys _strptime _markupbase
+    # secrets, 70 KB: hashlib is complete with the _md5/_sha1/_sha3/_blake2
+    # targets; hmac and secrets build on it.
+    hashlib hmac secrets uuid
+    # scripts and tests, 280 KB with unittest below (170 KB): argparse for
+    # CLI-style code; unittest needs signal. doctest would need pdb: left out.
+    argparse signal
+    # threads, 260 KB with logging (80 KB) and concurrent (100 KB) below:
+    # nothing runs in parallel (the GIL never moves), but logging, asyncio and
+    # concurrent.futures import these.
+    threading _threading_local queue
+)
+STDLIB_PACKAGES+=(
+    string urllib html tomllib zoneinfo sysconfig zipfile sqlite3 xml
+    unittest logging concurrent compression
+)
 for module in "${STDLIB_MODULES[@]}"; do
     cp "$ROOT/Lib/$module.py" "$STDLIB_DIR/"
 done
@@ -91,6 +135,19 @@ for package in "${STDLIB_PACKAGES[@]}"; do
 done
 # The `python -m json.tool` CLI, which drags argparse in.
 rm -f "$STDLIB_DIR/json/tool.py"
+# What needs sockets, subinterpreters or a C codec that is not built, and
+# CLIs: urllib keeps only its parsing half (requests are a Swift binding),
+# logging its core, compression only gzip and zlib, unittest drops mock
+# (~120 KB).
+rm -rf "$STDLIB_DIR/urllib/request.py" "$STDLIB_DIR/urllib/response.py" \
+       "$STDLIB_DIR/urllib/robotparser.py" "$STDLIB_DIR/urllib/error.py" \
+       "$STDLIB_DIR/logging/config.py" "$STDLIB_DIR/logging/handlers.py" \
+       "$STDLIB_DIR/concurrent/interpreters" \
+       "$STDLIB_DIR/unittest/mock.py" "$STDLIB_DIR/unittest/__main__.py" \
+       "$STDLIB_DIR/zipfile/__main__.py" \
+       "$STDLIB_DIR/tomllib/__main__.py" "$STDLIB_DIR/tomllib/mypy.ini" \
+       "$STDLIB_DIR/sysconfig/__main__.py" \
+       "$STDLIB_DIR/compression/bz2.py" "$STDLIB_DIR/compression/lzma.py" "$STDLIB_DIR/compression/zstd"
 # The sampling profiler needs a second process and ships ~1 MB of vendored
 # web assets; only profiling.tracing (cProfile) is usable embedded.
 rm -rf "$STDLIB_DIR/profiling/sampling"
