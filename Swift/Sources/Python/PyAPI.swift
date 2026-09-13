@@ -174,6 +174,22 @@ public extension PyAPI {
         try? value.toPython()
     }
 
+    /// `getattr(object, name)`, raising the way Python does.
+    func getattr(_ reference: PyRef, name: String) throws(PythonError) -> PyRef {
+        guard let attribute = PyObject_GetAttrString(reference, name) else {
+            throw PyRuntime.raisedError()
+        }
+        return PyHold.take(attribute)
+    }
+
+    /// `setattr(object, name, value)`; `nil` sets `None`.
+    func setattr(_ reference: PyRef, name: String, value: PyRef?) throws(PythonError) {
+        let value = value ?? Py_GetConstantBorrowed(UInt32(Py_CONSTANT_NONE))
+        if PyObject_SetAttrString(reference, name, value) != 0 {
+            throw PyRuntime.raisedError()
+        }
+    }
+
     /// `iter(object)`.
     func iter(_ reference: PyRef?) throws(PythonError) -> PyRef {
         guard let reference, let iterator = PyObject_GetIter(reference) else {
