@@ -109,11 +109,13 @@ extension PythonError: PythonConvertible {
         let name = PyRuntime.typeName(of: reference)
         // `str(exception)` is the message, the same thing pocketpy reads out of
         // `args[0]`.
+        // Formatted here: a host only reports errors that carry a traceback.
+        let traceback = PyRuntime.formattedException(reference)
         guard let text = PyObject_Str(reference) else {
             PyErr_Clear()
-            return PythonError(type: name, value: "")
+            return PythonError(type: name, value: "", traceback: traceback)
         }
         defer { Py_DecRef(text) }
-        return PythonError(type: name, value: String(text) ?? "")
+        return PythonError(type: name, value: String(text) ?? "", traceback: traceback)
     }
 }

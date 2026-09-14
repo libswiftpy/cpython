@@ -111,7 +111,8 @@ let package = Package(
         .target(
             name: "Python",
             dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlibmodule", "math", "_random", "_sha2", "_lsprof",
-                           "_struct", "binascii", "_csv", "array", "cmathmodule", "_md5", "_sha1", "_sha3", "_blake2", "_sqlite3", "unicodedata", "pyexpat"],
+                           "_struct", "binascii", "_csv", "array", "cmathmodule", "_md5", "_sha1", "_sha3", "_blake2", "_sqlite3", "unicodedata", "pyexpat",
+                           "select", "_socket", .target(name: "_posixsubprocess", condition: .when(platforms: [.macOS]))],
             path: "Swift/Sources/Python",
             linkerSettings: systemLibraries
         ),
@@ -372,6 +373,51 @@ let package = Package(
             name: "pyexpat",
             dependencies: ["PythonModules", "Cpyexpat"],
             path: "Swift/Sources/pyexpat"
+        ),
+
+        // asyncio imports socket and selectors at module level: select 60 KB,
+        // _socket 150. Only subprocess needs _posixsubprocess (30 KB), and only
+        // where it can fork, so that one is macOS-only.
+        .target(
+            name: "Cselect",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["selectmodule.c", "_swiftpy/select/shim.c"],
+            publicHeadersPath: "_swiftpy/select",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "select",
+            dependencies: ["PythonModules", "Cselect"],
+            path: "Swift/Sources/select"
+        ),
+
+        .target(
+            name: "Csocket",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["socketmodule.c", "_swiftpy/_socket/shim.c"],
+            publicHeadersPath: "_swiftpy/_socket",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "_socket",
+            dependencies: ["PythonModules", "Csocket"],
+            path: "Swift/Sources/_socket"
+        ),
+
+        .target(
+            name: "Cposixsubprocess",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["_swiftpy/_posixsubprocess/shim.c"],
+            publicHeadersPath: "_swiftpy/_posixsubprocess",
+            cSettings: moduleSettings
+        ),
+        .target(
+            name: "_posixsubprocess",
+            dependencies: ["PythonModules", "Cposixsubprocess"],
+            path: "Swift/Sources/_posixsubprocess"
         ),
 
         .executableTarget(name: "pyrun", dependencies: ["Python"], path: "Swift/Sources/pyrun"),

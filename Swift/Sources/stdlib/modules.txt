@@ -67,3 +67,9 @@ argparse signal unittest
 # import these. logging keeps its core: handlers and config need sockets.
 threading _threading_local queue logging concurrent
 -logging/config.py -logging/handlers.py -concurrent/interpreters
+
+# asyncio, 750 KB of source with the socket/selectors/subprocess it imports at load:
+# the interpreter runs it on a Swift-driven loop (SwiftEventLoop), so
+# sleep, gather, tasks and sync primitives are the stdlib's.
+asyncio socket selectors subprocess
+-asyncio/windows_events.py -asyncio/windows_utils.py -asyncio/__main__.py -asyncio/tools.py

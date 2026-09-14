@@ -20,6 +20,11 @@ import _blake2
 import _sqlite3
 import unicodedata
 import pyexpat
+import select
+import _socket
+#if os(macOS)
+import _posixsubprocess
+#endif
 
 @_exported import struct PythonModules.PythonModule
 
@@ -38,9 +43,15 @@ public enum PyRuntime {
     /// The stdlib always linked in: what the interpreter imports while starting,
     /// plus the C modules behind the pure-Python stdlib the package ships.
     public static var essentialModules: [PythonModule] {
-        [.encodings, .appleSupport, .stdlib, .zlib, .math, .random, .sha2, .lsprof,
-         .struct, .binascii, .csv, .array, .cmath, .md5, .sha1, .sha3, .blake2,
-         .sqlite3, .unicodedata, .pyexpat]
+        var modules: [PythonModule] = [
+            .encodings, .appleSupport, .stdlib, .zlib, .math, .random, .sha2, .lsprof,
+            .struct, .binascii, .csv, .array, .cmath, .md5, .sha1, .sha3, .blake2,
+            .sqlite3, .unicodedata, .pyexpat, .select, .socket,
+        ]
+        #if os(macOS)
+        modules.append(.posixSubprocess)
+        #endif
+        return modules
     }
 
     /// The interpreter's version, e.g. `3.16.0a0 (heads/main, ...)`.
