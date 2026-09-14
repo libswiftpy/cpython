@@ -47,7 +47,8 @@ try:
 
     # Legacy layout (x.pyc beside x.py) is the one zipimport looks for;
     # unchecked hashes spare it a stat of the source on every import.
-    if not compileall.compile_dir(staging, quiet=1, legacy=True,
+    # ddir is what tracebacks show instead of the build machine's staging path.
+    if not compileall.compile_dir(staging, ddir="stdlib", quiet=1, legacy=True,
                                   invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH):
         sys.exit("stage_stdlib: compile failed")
 
