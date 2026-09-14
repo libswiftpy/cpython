@@ -44,7 +44,6 @@ if [ ! -f Makefile ]; then
         --enable-framework="$BUILD_DIR/Frameworks" \
         --disable-test-modules \
         --without-ensurepip \
-        --without-doc-strings \
         --without-remote-debug
 fi
 
