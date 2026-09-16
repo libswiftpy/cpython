@@ -113,6 +113,39 @@ public final class PyObject: @MainActor PyReferencing, Sendable {
         }
     }
 
+    // MARK: Items
+
+    /// Reads or writes an item of a dictionary or other container. Reading
+    /// gives `nil` when the key is missing or the item is `None`; writing
+    /// `nil` stores `None`.
+    ///
+    ///     let name = environment?["name"]
+    @MainActor
+    public subscript<Key: PythonConvertible>(_ key: Key) -> PyObject? {
+        get { item(at: key) }
+        set { setItem(at: key, to: newValue?.reference) }
+    }
+
+    /// Reads or writes an item as a Swift type.
+    ///
+    ///     let version: Int? = environment?["version"]
+    @MainActor
+    @_disfavoredOverload
+    public subscript<Key: PythonConvertible, Value: PythonConvertible>(_ key: Key) -> Value? {
+        get {
+            guard let item = item(at: key) else { return nil }
+            return Value(item)
+        }
+        set {
+            guard let newValue else {
+                setItem(at: key, to: nil)
+                return
+            }
+            guard let object = try? newValue.toPython() else { return }
+            setItem(at: key, to: object.reference)
+        }
+    }
+
     // MARK: Calls
 
     /// Calls the object, returning the result or `nil` when it returned `None`.
@@ -190,6 +223,30 @@ public final class PyObject: @MainActor PyReferencing, Sendable {
     private func setAttribute(named name: String, to value: PyRef?) {
         let value = value ?? Py_GetConstantBorrowed(UInt32(Py_CONSTANT_NONE))
         if PyObject_SetAttrString(reference, name, value) != 0 {
+            PyErr_Clear()
+        }
+    }
+
+    @MainActor
+    private func item(at key: some PythonConvertible) -> PyObject? {
+        guard let key = try? key.toPython(),
+              let item = PyObject_GetItem(reference, key.reference) else {
+            PyErr_Clear()
+            return nil
+        }
+
+        guard Py_IsNone(item) == 0 else {
+            Py_DecRef(item)
+            return nil
+        }
+        return PyObject(consuming: item)
+    }
+
+    @MainActor
+    private func setItem(at key: some PythonConvertible, to value: PyRef?) {
+        guard let key = try? key.toPython() else { return }
+        let value = value ?? Py_GetConstantBorrowed(UInt32(Py_CONSTANT_NONE))
+        if PyObject_SetItem(reference, key.reference, value) != 0 {
             PyErr_Clear()
         }
     }
