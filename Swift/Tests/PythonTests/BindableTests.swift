@@ -111,4 +111,22 @@ struct BindableTests {
         let made: Python.PyObject = try #require(cpy.main.made)
         #expect(Counted(made.reference) == nil)
     }
+
+    /// A Python subclass reaches the bound `__new__` with itself as the class,
+    /// and must get an instance of itself, not of the base.
+    @Test func aPythonSubclassIsItsOwnType() throws {
+        let module = try #require(cpy.newmodule("subclass_module"))
+        module[dynamicMember: "Counted"] = Counted.pyType.object
+
+        try PyRuntime.run("""
+        import subclass_module
+        class Sub(subclass_module.Counted):
+            def __init__(self):
+                super().__init__()
+                self.tag = 'sub'
+        sub = Sub()
+        """)
+        #expect(try PyRuntime.evaluate("type(sub).__name__") == "Sub")
+        #expect(try PyRuntime.evaluate("sub.tag") == "sub")
+    }
 }

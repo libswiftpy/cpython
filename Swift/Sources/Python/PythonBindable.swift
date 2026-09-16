@@ -60,7 +60,9 @@ public extension PythonBindable {
     /// was called on, which is a subclass as often as it is `Self`.
     static func __new__(_ arguments: PyArguments) -> PyReturn {
         PyAPI.return {
-            guard let cls = arguments[0] else {
+            // Bound as a staticmethod, so the receiver is the type that
+            // declared it; the class called on comes first in the tuple.
+            guard let cls = arguments[1] else {
                 throw PythonError.TypeError("__new__ takes a class")
             }
             return cpy.newobject(type: PyType(reference: cls, name: pyType.name))
