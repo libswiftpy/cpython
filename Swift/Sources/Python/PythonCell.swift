@@ -119,7 +119,11 @@ extension PyRuntime {
             if arguments.kwarg:
                 names.append(arguments.kwarg.arg)
             namespace = {'_raw': raw}
-            exec('def ' + signature + ':\\n    return _raw(' + ', '.join(names) + ')', namespace)
+            # Annotations stay strings: the names in them (Any, View, ...) are
+            # not in this namespace, and inspect.signature would evaluate them.
+            import __future__
+            source = 'def ' + signature + ':\\n    return _raw(' + ', '.join(names) + ')'
+            exec(compile(source, '<binding>', 'exec', __future__.annotations.compiler_flag), namespace)
             function = namespace[name]
             function.__doc__ = docstring
             function._interface = signature
