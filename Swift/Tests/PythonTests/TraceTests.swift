@@ -38,12 +38,13 @@ struct TraceTests {
         """, filename: "<trace>")
         try PyRuntime.execute(code)
 
-        let lines = recorder.entries.compactMap {
-            $0.event == .line && $0.source == "<trace>" ? $0.line : nil
-        }
+        // Compiling runs helpers of its own (the source cache imports
+        // linecache once), so only the cell's frames count.
+        let traced = recorder.entries.filter { $0.source == "<trace>" }
+        let lines = traced.compactMap { $0.event == .line ? $0.line : nil }
         #expect(lines == [1, 2, 4, 3])
-        #expect(recorder.entries.filter { $0.event == .push }.count == 2)
-        #expect(recorder.entries.filter { $0.event == .pop }.count == 2)
+        #expect(traced.filter { $0.event == .push }.count == 2)
+        #expect(traced.filter { $0.event == .pop }.count == 2)
     }
 
     @Test func replacingAndRemovingTheTraceWorks() throws {

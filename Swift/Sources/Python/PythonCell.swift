@@ -119,12 +119,18 @@ extension PyRuntime {
             if arguments.kwarg:
                 names.append(arguments.kwarg.arg)
             namespace = {'_raw': raw}
-            # Annotations stay strings: the names in them (Any, View, ...) are
-            # not in this namespace, and inspect.signature would evaluate them.
-            import __future__
-            source = 'def ' + signature + ':\\n    return _raw(' + ', '.join(names) + ')'
-            exec(compile(source, '<binding>', 'exec', __future__.annotations.compiler_flag), namespace)
+            exec('def ' + signature + ':\\n    return _raw(' + ', '.join(names) + ')', namespace)
             function = namespace[name]
+            # Names in annotations (Any, View, ...) are not in this namespace,
+            # so serve VALUE as FORWARDREF: inspect.signature would raise
+            # NameError otherwise, which kills rlcompleter's completions.
+            import annotationlib
+            if annotate := function.__annotate__:
+                def _annotate(format):
+                    if format == annotationlib.Format.VALUE:
+                        format = annotationlib.Format.FORWARDREF
+                    return annotationlib.call_annotate_function(annotate, format)
+                function.__annotate__ = _annotate
             function.__doc__ = docstring
             function._interface = signature
             function._is_async = is_async

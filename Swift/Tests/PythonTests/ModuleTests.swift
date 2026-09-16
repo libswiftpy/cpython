@@ -90,12 +90,13 @@ struct ModuleTests {
         }
         try PyRuntime.run("import documented_module; greet = documented_module.greet")
 
-        // A builtin has no __dict__ for __annotations__, and inspect refuses a
-        // text signature that carries any: only the names survive.
-        #expect(try PyRuntime.evaluate("greet.__text_signature__")
+        // The def in front carries the annotations; the builtin behind it has
+        // no __dict__ for them, and inspect refuses a text signature that
+        // carries any, so there only the names survive.
+        #expect(try PyRuntime.evaluate("str(__import__('inspect').signature(greet))") == "(name: str) -> str")
+        #expect(try PyRuntime.evaluate("greet.__doc__") == "Greets someone.")
+        #expect(try PyRuntime.evaluate("greet.__globals__['_raw'].__text_signature__")
             == "($module, name, /)")
-        #expect(try PyRuntime.evaluate("str(__import__('inspect').signature(greet))") == "(name, /)")
-        #expect(try PyRuntime.evaluate("greet.__doc__").contains("Greets someone."))
-        #expect(try PyRuntime.evaluate("hasattr(greet, '__annotations__')") == "False")
+        #expect(try PyRuntime.evaluate("hasattr(greet.__globals__['_raw'], '__annotations__')") == "False")
     }
 }

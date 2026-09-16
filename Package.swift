@@ -14,8 +14,10 @@ let distribution = URL(fileURLWithPath: packageDirectory)
 // (LINKFORSHARED's `-stack_size` is left out: the linker rejects it for the
 // test bundle. Add it to your own executable if you need deep recursion.)
 let systemLibraries: [LinkerSetting] = [
+    // By path, not -lpython: the products directory holds this package's own
+    // libPython.a, which -lpython finds first on a case-insensitive disk.
     .unsafeFlags(
-        ["-L\(distribution.path)/lib", "-lpython",
+        ["\(distribution.path)/lib/libpython.a",
          "-liconv", "-ldl", "-framework", "CoreFoundation"],
         .when(platforms: [.macOS])
     ),
