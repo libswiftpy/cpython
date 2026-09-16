@@ -27,7 +27,9 @@ public struct PythonError: Error, Equatable {
 extension PythonError: LocalizedError, CustomStringConvertible {
     public var description: String { traceback ?? "\(type): \(value)" }
 
-    public var errorDescription: String? { description }
+    /// What an alert shows: the message alone, as SwiftPy's pocketpy backend
+    /// has it.
+    public var errorDescription: String? { traceback ?? value }
 }
 
 // MARK: - Exception constructors
