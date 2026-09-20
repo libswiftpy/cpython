@@ -317,7 +317,11 @@ private let propertyGetter: @convention(c) (
     PyRef?, UnsafeMutableRawPointer?
 ) -> PyRef? = { object, closure in
     guard let closure else { return nil }
-    return closure.assumingMemoryBound(to: PropertyBinding.self).pointee.getter(object, nil)
+    let getter = closure.assumingMemoryBound(to: PropertyBinding.self).pointee.getter
+    // On main, the way a thunk takes a method there. See Bindings.swift.
+    let receiver = GILBound(object)
+    let result: GILBound<CPython.PyObject> = onMain { GILBound(getter(receiver.pointer, nil)) }
+    return result.pointer
 }
 
 private let propertySetter: @convention(c) (
@@ -338,7 +342,12 @@ private let propertySetter: @convention(c) (
     Py_IncRef(value)
     PyTuple_SetItem(arguments, 0, value)
 
-    guard let result = setter(object, arguments) else { return -1 }
+    let receiver = GILBound(object)
+    let tuple = GILBound(arguments)
+    let result: GILBound<CPython.PyObject> = onMain {
+        GILBound(setter(receiver.pointer, tuple.pointer))
+    }
+    guard let result = result.pointer else { return -1 }
     Py_DecRef(result)
     return 0
 }
@@ -374,7 +383,7 @@ private func methodTable(
     let method = UnsafeMutablePointer<PyMethodDef>.allocate(capacity: 1)
     method.initialize(to: PyMethodDef(
         ml_name: strdup(name),
-        ml_meth: function,
+        ml_meth: Bindings.entryPoint(for: function),
         ml_flags: Int32(METH_VARARGS),
         ml_doc: strdup(documentation)
     ))

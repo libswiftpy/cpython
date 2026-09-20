@@ -106,7 +106,7 @@ public struct PyModule: @MainActor PyReferencing {
         let method = UnsafeMutablePointer<PyMethodDef>.allocate(capacity: 1)
         method.initialize(to: PyMethodDef(
             ml_name: strdup(name),
-            ml_meth: function,
+            ml_meth: Bindings.entryPoint(for: function),
             ml_flags: Int32(METH_VARARGS),
             ml_doc: strdup(documentation)
         ))
@@ -138,7 +138,7 @@ public struct PyModule: @MainActor PyReferencing {
         let method = UnsafeMutablePointer<PyMethodDef>.allocate(capacity: 1)
         method.initialize(to: PyMethodDef(
             ml_name: strdup(name),
-            ml_meth: function,
+            ml_meth: Bindings.entryPoint(for: function),
             ml_flags: Int32(METH_VARARGS),
             ml_doc: strdup(documentation)
         ))

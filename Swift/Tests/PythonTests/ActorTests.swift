@@ -15,22 +15,24 @@ struct ActorTests {
         try PythonCompiler.compile(source, filename: "<actor>")
     }
 
-    @Test func executeRunsOffTheMainThread() async throws {
+    @Test func executeRunsOffTheMainThreadAndBindingsOnIt() async throws {
         let module = try #require(py.newmodule("actor_probe"))
         Probe.calledFrom.withLock { $0.removeAll() }
         module.def("where()") { _, _ in
-            // Read on the Python thread, before the binding hops to main.
+            // The thunk has already taken the call to main.
             Probe.noteCaller()
             return PyAPI.return { Thread.isMainThread }
         }
 
         let code = try compile("""
-        import actor_probe
+        import actor_probe, threading
+        cell_on_main = threading.get_ident() == threading.main_thread().ident
         binding_ran_on_main = actor_probe.where()
         """)
         try await PyRuntime.execute(code)
 
-        #expect(Probe.calledFrom.withLock { $0 } == [false])
+        #expect(try PyRuntime.evaluate("cell_on_main") == "False")
+        #expect(Probe.calledFrom.withLock { $0 } == [true])
         #expect(try PyRuntime.evaluate("binding_ran_on_main") == "True")
     }
 

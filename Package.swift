@@ -110,10 +110,21 @@ let package = Package(
             path: "Plugins/StageStdlib"
         ),
 
+        // One C entry point per binding, so a Swift closure can be handed to
+        // CPython as a function pointer of its own. See Bindings.swift.
+        .target(
+            name: "Cthunks",
+            dependencies: ["CPython"],
+            path: "Modules",
+            sources: ["_swiftpy/thunks/thunks.c"],
+            publicHeadersPath: "_swiftpy/thunks",
+            cSettings: moduleSettings
+        ),
+
         // A thin Swift face on top of it.
         .target(
             name: "Python",
-            dependencies: ["CPython", "PythonModules", "encodings", "_apple_support", "stdlib", "zlibmodule", "math", "_random", "_sha2", "_lsprof",
+            dependencies: ["CPython", "Cthunks", "PythonModules", "encodings", "_apple_support", "stdlib", "zlibmodule", "math", "_random", "_sha2", "_lsprof",
                            "_struct", "binascii", "_csv", "array", "cmathmodule", "_md5", "_sha1", "_sha3", "_blake2", "_sqlite3", "unicodedata", "pyexpat",
                            "select", "_socket", .target(name: "_posixsubprocess", condition: .when(platforms: [.macOS]))],
             path: "Swift/Sources/Python",
