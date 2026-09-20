@@ -1,25 +1,34 @@
 import Testing
+import Synchronization
 @testable import Python
 
 @MainActor
 @Suite(.serialized)
 struct TraceTests {
-    @MainActor
-    final class Recorder {
-        struct Entry {
+    /// The trace runs on whichever thread runs Python, so the entries are
+    /// kept behind a lock.
+    nonisolated final class Recorder: Sendable {
+        struct Entry: Sendable {
             let event: PyAPI.TraceEvent
             let line: Int?
             let source: String?
         }
 
-        var entries: [Entry] = []
+        private let storage = Mutex<[Entry]>([])
+
+        var entries: [Entry] {
+            get { storage.withLock { $0 } }
+            set { storage.withLock { $0 = newValue } }
+        }
 
         func record(_ frame: PyAPI.Frame, _ event: PyAPI.TraceEvent) {
-            entries.append(Entry(
-                event: event,
-                line: frame.lineNumber,
-                source: frame.sourceLocation
-            ))
+            storage.withLock {
+                $0.append(Entry(
+                    event: event,
+                    line: frame.lineNumber,
+                    source: frame.sourceLocation
+                ))
+            }
         }
     }
 

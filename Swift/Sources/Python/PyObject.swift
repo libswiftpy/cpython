@@ -27,16 +27,16 @@ public extension PyReferencing {
 
 /// A Python object, kept alive for as long as this wrapper is.
 ///
-/// Main-actor isolated, the way SwiftPy's is: the interpreter only ever runs
-/// on the thread that holds the GIL, so a box for one of its objects belongs
-/// there too.
+/// Main-actor isolated, the way SwiftPy's is: main holds the GIL whenever it
+/// runs, so a box for one of its objects belongs there. Only the pointer
+/// itself is readable elsewhere, for ``PythonActor``, which holds the GIL too.
 @MainActor
 @dynamicMemberLookup
 public final class PyObject: @MainActor PyReferencing, Sendable {
-    public private(set) var reference: PyRef
+    public nonisolated(unsafe) private(set) var reference: PyRef
 
     /// Takes ownership of a new reference.
-    init(consuming reference: PyRef) {
+    nonisolated init(consuming reference: PyRef) {
         self.reference = reference
     }
 
@@ -251,10 +251,14 @@ public final class PyObject: @MainActor PyReferencing, Sendable {
         }
     }
 
-    // Isolated, because the last reference can be dropped anywhere — an actor
-    // holding a code object releases it on its own thread — and a decref there
-    // has no thread state and would abort the process.
-    @MainActor deinit {
-        Py_DecRef(reference)
+    // The last reference can be dropped anywhere -- an actor holding a code
+    // object releases it on its own thread -- and only a thread with the GIL
+    // may decref. Anywhere else, the release waits for one that has it.
+    deinit {
+        if PyGILState_Check() == 1 {
+            Py_DecRef(reference)
+        } else {
+            PyRelease.defer(reference)
+        }
     }
 }

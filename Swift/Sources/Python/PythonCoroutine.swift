@@ -4,15 +4,13 @@ import Foundation
 public extension PyRuntime {
     /// Whether `execute` handed back a coroutine instead of running the code,
     /// which is what source with a top-level `await` compiles to.
-    @MainActor
-    static func isCoroutine(_ object: PyObject) -> Bool {
-        object.typeName == "coroutine"
+    nonisolated static func isCoroutine(_ object: PyObject) -> Bool {
+        typeName(of: object.reference) == "coroutine"
     }
 
     /// A one-shot iterator handing `request` to the driver: what a Swift-backed
     /// `__await__` returns to make its object awaitable.
-    @MainActor
-    static func awaitable(yielding request: PyObject) throws(PythonError) -> PyObject {
+    nonisolated static func awaitable(yielding request: PyObject) throws(PythonError) -> PyObject {
         let make = try helper("_awaitable")
         defer { Py_DecRef(make) }
 
@@ -22,22 +20,21 @@ public extension PyRuntime {
         return PyObject(consuming: iterator)
     }
 
-    /// Steps a coroutine to completion, handing whatever it suspends on to
-    /// `perform` and sending the result back in. The main actor is free while
-    /// that work is in flight. An error from `perform` is raised at the await
-    /// site, where a `try` around it can catch it.
-    @MainActor
+    /// Steps a coroutine to completion on ``PythonActor``, handing whatever it
+    /// suspends on to `perform` and sending the result back in. An error from
+    /// `perform` is raised at the await site, where a `try` around it can
+    /// catch it.
     @discardableResult
-    static func drive(
+    nonisolated static func drive(
         _ coroutine: PyObject,
         perform: @MainActor (PyObject) async throws -> PyObject = { try await performSleep($0) }
     ) async throws(PythonError) -> PyObject {
         // A coroutine that has not started yet can only be sent None.
-        var step = Step.send(.none)
+        var step = Step.send(PyObject(consuming: Py_GetConstant(UInt32(Py_CONSTANT_NONE))))
 
         while true {
             let produced: PyObject
-            switch try resume(coroutine, with: step) {
+            switch try await resume(coroutine, with: step) {
             case .returned(let value): return value
             case .yielded(let request): produced = request
             }
@@ -63,7 +60,7 @@ public extension PyRuntime {
     }
 
     /// One step: `send` for a value, `throw` to raise at the await point.
-    @MainActor
+    @PythonActor
     private static func resume(_ coroutine: PyObject, with step: Step) throws(PythonError) -> Outcome {
         switch step {
         case .send(let value):
@@ -95,8 +92,11 @@ public extension PyRuntime {
                 throw raisedError()
             }
             defer { Py_DecRef(stop) }
-            let value = PyObject_GetAttrString(stop, "value")
-            return .returned(value.map { PyObject(consuming: $0) } ?? .none)
+            guard let value = PyObject_GetAttrString(stop, "value") else {
+                PyErr_Clear()
+                return .returned(PyObject(consuming: Py_GetConstant(UInt32(Py_CONSTANT_NONE))))
+            }
+            return .returned(PyObject(consuming: value))
         }
     }
 

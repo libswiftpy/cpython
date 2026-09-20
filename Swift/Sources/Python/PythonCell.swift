@@ -2,7 +2,7 @@ import CPython
 
 extension PyRuntime {
     /// Calls `function` with string arguments, returning a new reference.
-    static func call(
+    nonisolated static func call(
         _ function: PyRef,
         with arguments: [String]
     ) throws(PythonError) -> PyRef {
@@ -27,7 +27,7 @@ extension PyRuntime {
 
     /// `str()` of a raised exception, with its traceback, or `nil` when the
     /// helpers are not up yet — which is the one case that must not recurse.
-    static func formattedException(
+    nonisolated static func formattedException(
         _ exception: PyRef
     ) -> String? {
         guard helpers != nil,
@@ -48,7 +48,7 @@ extension PyRuntime {
         return PyUnicode_AsUTF8(text).map(String.init(cString:))
     }
 
-    static func cacheSource(_ source: String, filename: String) throws(PythonError) {
+    nonisolated static func cacheSource(_ source: String, filename: String) throws(PythonError) {
         let cache = try helper("_cache_source")
         defer { Py_DecRef(cache) }
         let result = try call(cache, with: [source, filename])
@@ -57,10 +57,10 @@ extension PyRuntime {
 
     /// The `_swiftpy` module, holding what is easier to write in Python than
     /// through the C API. Built on first use and kept for the process lifetime.
-    private static var helpers: PyRef?
+    private nonisolated(unsafe) static var helpers: PyRef?
 
     /// Returns a new reference to one of the helpers.
-    static func helper(_ name: String) throws(PythonError) -> PyRef {
+    nonisolated static func helper(_ name: String) throws(PythonError) -> PyRef {
         if helpers == nil {
             guard let module = PyImport_AddModule("_swiftpy"),
                   let namespace = PyModule_GetDict(module) else {
@@ -79,7 +79,7 @@ extension PyRuntime {
         return function
     }
 
-    private static let helperSource = """
+    private nonisolated static let helperSource = """
         import _ast
 
         # CPython's own `single` input rejects more than one statement, but

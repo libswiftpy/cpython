@@ -76,7 +76,7 @@ public struct PyAPI {
 
     /// Routes `sys.stdout` and `sys.stderr` to a Swift closure.
     @inlinable
-    public func redirectOutput(to hook: ((String) -> Void)?) throws(PythonError) {
+    public func redirectOutput(to hook: (@Sendable (String) -> Void)?) throws(PythonError) {
         try PyRuntime.redirectOutput(to: hook)
     }
 }
@@ -97,18 +97,16 @@ public extension PyAPI {
     /// Runs a binding body, turning a thrown error into a raised Python
     /// exception. The counterpart of SwiftPy's `PyAPI.return`.
     ///
-    /// The body runs on the main actor: CPython only ever calls back on the
-    /// thread that holds the GIL, which is the one the interpreter started on.
+    /// The body runs on the main actor wherever CPython made the call: inline
+    /// when that is main, across a hop when it is ``PythonActor``'s thread.
     /// Takes `Any?` rather than a convertible: a bound getter reads whatever
     /// the Swift property holds, and what is not convertible goes to the host's
     /// box.
     nonisolated static func `return`(_ body: @MainActor () throws -> Any?) -> PyRef? {
-        var result: GILBound<CPython.PyObject>?
-        MainActor.assumeIsolated {
+        let result: GILBound<CPython.PyObject>? = onMain {
             do {
                 guard let value = try body() else {
-                    result = GILBound(Py_GetConstant(UInt32(Py_CONSTANT_NONE)))
-                    return
+                    return GILBound(Py_GetConstant(UInt32(Py_CONSTANT_NONE)))
                 }
 
                 let object: PyObject
@@ -125,12 +123,13 @@ public extension PyAPI {
                 // The caller owns what it returns, and the box would release
                 // this on the way out.
                 Py_IncRef(object.reference)
-                result = GILBound(object.reference)
+                return GILBound(object.reference)
             } catch let error as PythonError {
                 raise(error)
             } catch {
                 raise(.RuntimeError("\(error)"))
             }
+            return nil
         }
         return result?.pointer
     }
@@ -256,8 +255,8 @@ public extension PyAPI {
         PyErr_Clear()
     }
 
-    /// Sets `error` as the raised exception.
-    static func raise(_ error: PythonError) {
+    /// Sets `error` as the raised exception. Expects the GIL held.
+    nonisolated static func raise(_ error: PythonError) {
         PyErr_SetString(PyRuntime.exceptionType(named: error.type), error.value)
     }
 }
@@ -275,4 +274,10 @@ public enum PyBridge {
 
     /// How to box a returned value that is not ``PythonConvertible``.
     public static var box: ((Any) -> PyObject?)?
+
+    /// Captures what the host keeps in task-locals -- called on the thread a
+    /// binding was invoked from -- and returns a wrapper that restores it
+    /// around the binding's body on main. A hop through a dispatch queue
+    /// carries none of it on its own.
+    public nonisolated(unsafe) static var carryContext: (@Sendable () -> @Sendable (() -> Void) -> Void)?
 }

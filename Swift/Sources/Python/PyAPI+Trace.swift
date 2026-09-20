@@ -2,7 +2,7 @@ import CPython
 
 public extension PyAPI {
     /// An interpreter trace event shared with SwiftPy's pocketpy backend.
-    enum TraceEvent: Equatable {
+    nonisolated enum TraceEvent: Equatable, Sendable {
         /// About to execute a new source line.
         case line
         /// A frame was pushed (a call was entered).
@@ -22,7 +22,7 @@ public extension PyAPI {
 
     /// A lightweight view over a CPython frame passed to a trace function.
     /// The pointer is only valid for the duration of the callback.
-    struct Frame {
+    nonisolated struct Frame {
         let reference: OpaquePointer
 
         public var lineNumber: Int? {
@@ -48,19 +48,31 @@ public extension PyAPI {
         }
     }
 
-    typealias TraceFunction = @MainActor (Frame, TraceEvent) -> Void
+    /// Called on whichever thread runs the traced code, with the GIL held.
+    typealias TraceFunction = @Sendable (Frame, TraceEvent) -> Void
 
     /// Installs a synchronous trace callback for line and frame events, or
     /// removes it when `trace` is nil.
     func setTrace(_ trace: TraceFunction?) {
         PyAPI.traceFunction = trace
+        PyAPI.traceGeneration += 1
+        // A trace hook is per thread state; the Python thread picks this one
+        // up before its next job.
         PyEval_SetTrace(trace == nil ? nil : traceTrampoline, nil)
     }
 
-    internal static var traceFunction: TraceFunction?
+    internal nonisolated(unsafe) static var traceFunction: TraceFunction?
+    private nonisolated(unsafe) static var traceGeneration = 0
+    private nonisolated(unsafe) static var installedTraceGeneration = 0
+
+    /// Brings the calling thread's trace hook up to date with ``setTrace``.
+    nonisolated static func installTraceIfNeeded() {
+        guard installedTraceGeneration != traceGeneration else { return }
+        installedTraceGeneration = traceGeneration
+        PyEval_SetTrace(traceFunction == nil ? nil : traceTrampoline, nil)
+    }
 }
 
-@MainActor
 private let traceTrampoline: Py_tracefunc = { _, frame, event, _ in
     guard let frame,
           let event = PyAPI.TraceEvent(event) else { return 0 }
