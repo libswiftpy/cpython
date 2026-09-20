@@ -31,8 +31,9 @@ enum Bindings {
     }
 }
 
+// Public, or a release link strips what only the C side refers to.
 @_cdecl("swiftpy_dispatch")
-func swiftpy_dispatch(
+public func swiftpy_dispatch(
     _ slot: Int32, _ receiver: UnsafeMutableRawPointer?, _ arguments: UnsafeMutableRawPointer?
 ) -> UnsafeMutableRawPointer? {
     let result = Bindings.call(
