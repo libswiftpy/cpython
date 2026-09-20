@@ -1,15 +1,27 @@
 import CPython
 
 extension PyRuntime {
-    /// Runs a code object from ``PythonCompiler/compile(_:filename:mode:)``.
+    /// Runs a code object from ``PythonCompiler/compile(_:filename:mode:)``,
+    /// on the calling thread, which must hold the GIL: main does whenever it
+    /// runs. ``PythonActor`` has the asynchronous form.
     ///
     /// Defaults to `__main__`'s namespace. Pass a ``namespace()`` of your own
     /// for code that should not see, or be seen by, what runs there.
     @discardableResult
-    public static func execute(
+    public nonisolated static func execute(
         _ code: PyObject,
         globals: PyObject? = nil,
         locals: PyObject? = nil
+    ) throws(PythonError) -> PyObject {
+        try run(code: code, globals: globals, locals: locals)
+    }
+
+    /// The synchronous `execute`, under a name the asynchronous one can reach.
+    @discardableResult
+    nonisolated static func run(
+        code: PyObject,
+        globals: PyObject?,
+        locals: PyObject?
     ) throws(PythonError) -> PyObject {
         // `??` widens a typed throw to `any Error`, so spell the fallback out.
         let globals = if let globals { globals } else { try mainNamespace() }
@@ -22,7 +34,7 @@ extension PyRuntime {
     }
 
     /// A fresh namespace, seeded with the builtins so code can run in it.
-    public static func namespace() throws(PythonError) -> PyObject {
+    public nonisolated static func namespace() throws(PythonError) -> PyObject {
         guard let dictionary = PyDict_New() else { throw .SystemError("could not allocate a dict") }
         let namespace = PyObject(consuming: dictionary)
 
@@ -34,7 +46,7 @@ extension PyRuntime {
     }
 
     /// `str()` of an object.
-    public static func string(of object: PyObject) throws(PythonError) -> String {
+    public nonisolated static func string(of object: PyObject) throws(PythonError) -> String {
         guard let text = PyObject_Str(object.reference) else { throw raisedError() }
         defer { Py_DecRef(text) }
 
@@ -43,13 +55,13 @@ extension PyRuntime {
     }
 
     /// The module `name`, importing it the way `import name` does.
-    public static func module(_ name: String) throws(PythonError) -> PyObject {
+    public nonisolated static func module(_ name: String) throws(PythonError) -> PyObject {
         guard let module = PyImport_ImportModule(name) else { throw raisedError() }
         return PyObject(consuming: module)
     }
 
     /// `__main__`'s namespace, which is where console input runs.
-    static func mainNamespace() throws(PythonError) -> PyObject {
+    nonisolated static func mainNamespace() throws(PythonError) -> PyObject {
         guard let main = PyImport_AddModule("__main__"),
               let namespace = PyModule_GetDict(main) else {
             throw .SystemError("__main__ is missing")

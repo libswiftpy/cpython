@@ -2,14 +2,13 @@ import CPython
 import Foundation
 
 /// What a created type needs at destruction time. Kept aside because a
-/// `@convention(c)` slot cannot capture anything.
-@MainActor
-private var destructors: [PyRef: @convention(c) (UnsafeMutableRawPointer?) -> Void] = [:]
+/// `@convention(c)` slot cannot capture anything. Written on main, read
+/// wherever an object dies; the GIL keeps the two apart.
+private nonisolated(unsafe) var destructors: [PyRef: @convention(c) (UnsafeMutableRawPointer?) -> Void] = [:]
 
 /// Every type ``PyAPI/newtype(name:base:module:dtor:)`` made, so one can be
 /// recognised when it turns up as somebody's base.
-@MainActor
-private var createdTypes: Set<PyRef> = []
+private nonisolated(unsafe) var createdTypes: Set<PyRef> = []
 
 /// Where a created type keeps its Swift value: right past the object header.
 /// Fixed rather than per-type so a Python subclass, whose own payload CPython
@@ -330,9 +329,7 @@ private let propertySetter: @convention(c) (
 
     // A deletion arrives as a nil value, which no binding takes.
     guard let value, let arguments = PyTuple_New(1) else {
-        MainActor.assumeIsolated {
-            PyAPI.raise(.TypeError("cannot delete this attribute"))
-        }
+        PyAPI.raise(.TypeError("cannot delete this attribute"))
         return -1
     }
     defer { Py_DecRef(arguments) }
@@ -391,7 +388,6 @@ private func methodTable(
 /// always is that for its subclasses -- it is the one that added storage, and
 /// CPython refuses a second base that wants its own. Walking it is pointer
 /// chasing: no allocation, which is what a destructor can afford.
-@MainActor
 private func destructor(
     of type: UnsafeMutablePointer<PyTypeObject>?
 ) -> (@convention(c) (UnsafeMutableRawPointer?) -> Void)? {
@@ -419,11 +415,9 @@ private let deallocate: @convention(c) (PyRef?) -> Void = { object in
             .assumingMemoryBound(to: UInt8.self)
     )
 
-    // assumeIsolated is the guard rail, not ceremony: a decref from another
-    // thread traps here instead of corrupting the interpreter.
-    MainActor.assumeIsolated {
-        destructor(of: crossing.pointer)?(UnsafeMutableRawPointer(payload.pointer))
-    }
+    // On whichever thread dropped the last reference; the destructor decides
+    // what of its own has to reach main.
+    destructor(of: crossing.pointer)?(UnsafeMutableRawPointer(payload.pointer))
 
     if let type,
        let free = PyType_GetSlot(type, Py_tp_free) {

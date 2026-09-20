@@ -104,15 +104,19 @@ public extension PyType {
 
 /// Lets go of the Swift object a Python instance was keeping alive, and clears
 /// the way back before it does.
+///
+/// A main-actor object dies on main. When the Python side went on the Python
+/// thread, main takes care of this as it wakes, before any of its own code
+/// could reach the stale cache.
 private func releaseBoundObject(_ userdata: UnsafeMutableRawPointer?) {
-    let crossing = GILBound(userdata?.assumingMemoryBound(to: UInt8.self))
-
-    MainActor.assumeIsolated {
-        guard let raw = crossing.pointer.map({ UnsafeMutableRawPointer($0) }),
-              let stored = raw.load(as: UnsafeMutableRawPointer?.self) else {
-            return
-        }
-        let object = Unmanaged<AnyObject>.fromOpaque(stored).takeRetainedValue()
+    guard let raw = userdata,
+          let stored = raw.load(as: UnsafeMutableRawPointer?.self) else {
+        return
+    }
+    let crossing = GILBound(stored.assumingMemoryBound(to: UInt8.self))
+    PyRelease.onMain {
+        guard let pointer = crossing.pointer else { return }
+        let object = Unmanaged<AnyObject>.fromOpaque(pointer).takeRetainedValue()
         if let bindable = object as? any PythonBindable {
             bindable._pythonCache.reference = nil
         }

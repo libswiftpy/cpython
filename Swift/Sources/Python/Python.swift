@@ -35,9 +35,9 @@ import Foundation
 /// CPython is a process-wide singleton, so every entry point here is static,
 /// mirroring the C API it wraps.
 ///
-/// Isolated to the main actor, which is what makes the interpreter
-/// single-threaded: the GIL is taken there during initialization and never
-/// released, so the isolation and the lock describe the same thread.
+/// Two threads run Python: main, which holds the GIL whenever its run loop is
+/// awake, and ``PythonActor``'s, which borrows it in between. The
+/// `nonisolated` members expect the GIL held; see ``GIL``.
 @MainActor
 public enum PyRuntime {
     /// The stdlib always linked in: what the interpreter imports while starting,
@@ -64,9 +64,8 @@ public enum PyRuntime {
     /// The configuration is *isolated*: no `site` import, no environment
     /// variables, no signal handlers — only what an embedded interpreter needs.
     ///
-    /// The interpreter is single-threaded: the GIL stays attached to the main
-    /// thread and is never released, so Python only ever runs there — where
-    /// Python code can reach the UI directly.
+    /// Call it on the main thread: main keeps the GIL it takes here for as long
+    /// as its run loop is awake, and ``PythonActor`` runs while it sleeps.
     public static func initialize(modules: [PythonModule] = []) throws(PythonError) {
         guard !isInitialized else { return }
 
@@ -118,23 +117,24 @@ public enum PyRuntime {
         // Python code too and not only from the Swift side.
         _ = try helper("_compile_cell")
 
-        // Initialization leaves the GIL held by this thread, and it stays that
-        // way: an uncontended GIL that is never handed over costs nothing, and
-        // keeping it here is what makes the interpreter single-threaded.
+        // How long a waking main waits for a running cell to hand the GIL
+        // over; the default 5 ms is a frame.
+        try run("import sys; sys.setswitchinterval(\(GIL.switchInterval))")
+        GIL.shareWithRunLoop()
     }
 
     /// Adds a directory to `sys.path`.
-    public static func addSearchPath(_ path: String) throws(PythonError) {
+    public nonisolated static func addSearchPath(_ path: String) throws(PythonError) {
         try run("import sys; sys.path.append(\(pythonLiteral(path)))")
     }
 
-    private static func pythonLiteral(_ text: String) -> String {
+    private nonisolated static func pythonLiteral(_ text: String) -> String {
         "'" + text.replacingOccurrences(of: "\\", with: "\\\\")
                   .replacingOccurrences(of: "'", with: "\\'") + "'"
     }
 
-    /// Runs a block of Python source in `__main__`.
-    public static func run(_ source: String) throws(PythonError) {
+    /// Runs a block of Python source in `__main__`. Expects the GIL held.
+    public nonisolated static func run(_ source: String) throws(PythonError) {
         // The interpreter prints and clears the traceback itself, so there is
         // nothing left to report beyond the failure.
         guard PyRun_SimpleStringFlags(source, nil) == 0 else {
@@ -143,7 +143,7 @@ public enum PyRuntime {
     }
 
     /// Evaluates a Python expression and returns `str()` of its result.
-    public static func evaluate(_ expression: String) throws(PythonError) -> String {
+    public nonisolated static func evaluate(_ expression: String) throws(PythonError) -> String {
         guard let main = PyImport_AddModule("__main__"),
               let globals = PyModule_GetDict(main) else {
             throw .SystemError("__main__ is missing")
@@ -170,14 +170,14 @@ public enum PyRuntime {
 
     // MARK: - Errors
 
-    private static func check(_ status: PyStatus) throws(PythonError) {
+    private nonisolated static func check(_ status: PyStatus) throws(PythonError) {
         guard PyStatus_Exception(status) != 0 else { return }
         let message = status.err_msg.map(String.init(cString:)) ?? "unknown failure"
         throw .SystemError(message)
     }
 
     /// Consumes the currently raised exception, if any.
-    static func raisedError() -> PythonError {
+    nonisolated static func raisedError() -> PythonError {
         guard let exception = PyErr_GetRaisedException() else {
             return .SystemError("failed without raising")
         }
@@ -194,7 +194,7 @@ public enum PyRuntime {
     }
 
     /// `type(exception).__name__`, or a fallback when even that fails.
-    static func typeName(of exception: PyRef) -> String {
+    nonisolated static func typeName(of exception: PyRef) -> String {
         guard let type = PyObject_GetAttrString(exception, "__class__") else {
             PyErr_Clear()
             return "Exception"

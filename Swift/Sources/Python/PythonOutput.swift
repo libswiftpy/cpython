@@ -10,8 +10,9 @@ extension PyRuntime {
     ///     try Python.initialize()
     ///     try Python.redirectOutput { print("python:", $0, terminator: "") }
     ///
-    /// Pass `nil` to restore the interpreter's own streams.
-    public static func redirectOutput(to hook: ((String) -> Void)?) throws(PythonError) {
+    /// The hook is called on whichever thread is running Python, with the GIL
+    /// held. Pass `nil` to restore the interpreter's own streams.
+    public static func redirectOutput(to hook: (@Sendable (String) -> Void)?) throws(PythonError) {
         outputHook = hook
 
         guard hook != nil else {
@@ -61,7 +62,7 @@ extension PyRuntime {
         Py_DecRef(result)
     }
 
-    private nonisolated(unsafe) static var outputHook: ((String) -> Void)?
+    private nonisolated(unsafe) static var outputHook: (@Sendable (String) -> Void)?
 
     /// `write` as CPython sees it. Allocated once and never freed: CPython
     /// keeps referring to the method table for as long as the function lives.

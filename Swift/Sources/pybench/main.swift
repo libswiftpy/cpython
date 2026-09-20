@@ -85,6 +85,7 @@ func run() async throws {
         total += i * i
     """)
     try measure("compute cell") { try py.execute(compute) }
+    try await measure("compute cell on the actor") { try await PyRuntime.execute(compute) }
 
     // 2. Binding calls: Python calling into Swift.
     let bindings = try compile("""
@@ -92,9 +93,10 @@ func run() async throws {
         bench.touch(i)
     """)
     try measure("100k binding calls") { try py.execute(bindings) }
+    try await measure("100k binding calls on the actor") { try await PyRuntime.execute(bindings) }
 
     // 3. PyObject from main: attribute reads and method calls with Python idle.
-    try measure("100k attribute reads from main") {
+    measure("100k attribute reads from main") {
         for _ in 0..<100_000 {
             let _: Int? = component.value
         }
@@ -118,8 +120,8 @@ func run() async throws {
     // waiting for the GIL both count.
     var latencies: [Duration] = []
     let clock = ContinuousClock()
-    let cell = Task { @MainActor in
-        try py.execute(busy)
+    let cell = Task {
+        try await PyRuntime.execute(busy)
     }
     let end = clock.now + .seconds(1.2)
     var wake = clock.now + .milliseconds(1)
@@ -148,7 +150,7 @@ func run() async throws {
     }
 
     // 6. Box churn: PyObject boxes made and dropped on main.
-    try measure("1M boxes") {
+    measure("1M boxes") {
         for _ in 0..<1_000_000 {
             _ = PyObject.none
         }
