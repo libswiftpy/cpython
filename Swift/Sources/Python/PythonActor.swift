@@ -53,6 +53,7 @@ final class PythonExecutor: SerialExecutor {
         // One thread state for the life of the thread, so the trace hook,
         // threading.local and contextvars carry across jobs.
         _ = PyGILState_Ensure()
+        PyRuntime.prepareThread?()
         var parked = PyEval_SaveThread()
 
         while true {
@@ -75,6 +76,12 @@ final class PythonExecutor: SerialExecutor {
 }
 
 public extension PyRuntime {
+    /// Runs once on ``PythonActor``'s thread as it starts, with the GIL held
+    /// and a thread state of its own: where a host sets what CPython keeps
+    /// per thread, such as asyncio's running loop. Set it before the first
+    /// use of the actor.
+    nonisolated(unsafe) static var prepareThread: (@Sendable () -> Void)?
+
     /// Runs a code object on ``PythonActor``, off the main actor. The same
     /// call as the synchronous one, for code that should not hold main up.
     @PythonActor

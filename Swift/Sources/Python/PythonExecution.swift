@@ -45,6 +45,30 @@ extension PyRuntime {
         return namespace
     }
 
+    /// Calls `function` with positional `arguments`. Expects the GIL held:
+    /// what ``PythonActor`` code uses in place of the main-actor `PyObject`
+    /// call.
+    @discardableResult
+    public nonisolated static func call(
+        _ function: PyObject,
+        arguments: [PyObject] = []
+    ) throws(PythonError) -> PyObject {
+        guard let tuple = PyTuple_New(arguments.count) else {
+            throw .SystemError("could not allocate an argument tuple")
+        }
+        defer { Py_DecRef(tuple) }
+        for (index, argument) in arguments.enumerated() {
+            // The tuple steals what it is given, and the box keeps its own.
+            Py_IncRef(argument.reference)
+            PyTuple_SetItem(tuple, index, argument.reference)
+        }
+
+        guard let result = PyObject_Call(function.reference, tuple, nil) else {
+            throw raisedError()
+        }
+        return PyObject(consuming: result)
+    }
+
     /// `str()` of an object.
     public nonisolated static func string(of object: PyObject) throws(PythonError) -> String {
         guard let text = PyObject_Str(object.reference) else { throw raisedError() }

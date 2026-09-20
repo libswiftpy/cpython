@@ -320,8 +320,7 @@ private let propertyGetter: @convention(c) (
     let getter = closure.assumingMemoryBound(to: PropertyBinding.self).pointee.getter
     // On main, the way a thunk takes a method there. See Bindings.swift.
     let receiver = GILBound(object)
-    let result: GILBound<CPython.PyObject> = onMain { GILBound(getter(receiver.pointer, nil)) }
-    return result.pointer
+    return onMainBinding { getter(receiver.pointer, nil) }
 }
 
 private let propertySetter: @convention(c) (
@@ -344,10 +343,7 @@ private let propertySetter: @convention(c) (
 
     let receiver = GILBound(object)
     let tuple = GILBound(arguments)
-    let result: GILBound<CPython.PyObject> = onMain {
-        GILBound(setter(receiver.pointer, tuple.pointer))
-    }
-    guard let result = result.pointer else { return -1 }
+    guard let result = onMainBinding({ setter(receiver.pointer, tuple.pointer) }) else { return -1 }
     Py_DecRef(result)
     return 0
 }

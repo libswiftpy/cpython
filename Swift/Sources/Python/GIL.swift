@@ -121,3 +121,34 @@ func onMain<T>(_ body: @MainActor () -> T) -> T {
     }
     return result!
 }
+
+/// ``onMain(_:)`` for a binding: a `nil` result means an exception was
+/// raised, and an exception belongs to the thread state that raised it, so
+/// one raised on main is carried back to the thread CPython is waiting on.
+func onMainBinding(_ body: @MainActor () -> PyRef?) -> PyRef? {
+    nonisolated(unsafe) var result: PyRef?
+    if Thread.isMainThread {
+        MainActor.assumeIsolated { result = body() }
+        return result
+    }
+    nonisolated(unsafe) var raised: PyRef?
+    let carry = PyBridge.carryContext?()
+    let state = PyEval_SaveThread()
+    DispatchQueue.main.sync {
+        MainActor.assumeIsolated {
+            if let carry {
+                carry { result = body() }
+            } else {
+                result = body()
+            }
+            if result == nil {
+                raised = PyErr_GetRaisedException()
+            }
+        }
+    }
+    PyEval_RestoreThread(state)
+    if let raised {
+        PyErr_SetRaisedException(raised)
+    }
+    return result
+}
