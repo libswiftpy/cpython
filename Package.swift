@@ -62,6 +62,7 @@ let package = Package(
     products: [
         .library(name: "Python", targets: ["Python"]),
         .executable(name: "pyrun", targets: ["pyrun"]),
+        .executable(name: "pybench", targets: ["pybench"]),
     ],
     targets: [
         // The C API itself, imported through a module map.
@@ -423,6 +424,7 @@ let package = Package(
         ),
 
         .executableTarget(name: "pyrun", dependencies: ["Python"], path: "Swift/Sources/pyrun"),
+        .executableTarget(name: "pybench", dependencies: ["Python"], path: "Swift/Sources/pybench"),
         .testTarget(name: "PythonTests", dependencies: ["Python"], path: "Swift/Tests/PythonTests"),
     ]
 )
