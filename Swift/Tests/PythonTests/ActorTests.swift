@@ -117,6 +117,27 @@ struct ActorTests {
         #expect(after == before)
     }
 
+    @Test func aBindingsErrorIsRaisedWhereItWasCalled() async throws {
+        let module = try #require(py.newmodule("actor_raising"))
+        module.def("fail()") { _, _ in
+            PyAPI.return { throw PythonError.ValueError("from main") }
+        }
+
+        // The body raised on main; the cell, on the actor, must see it.
+        let code = try compile("""
+        import actor_raising
+        try:
+            actor_raising.fail()
+            caught = None
+        except ValueError as error:
+            caught = str(error)
+        """)
+        try await PyRuntime.execute(code)
+        #expect(try PyRuntime.evaluate("caught") == "from main")
+        // And nothing is left behind on main.
+        #expect(PyErr_Occurred() == nil)
+    }
+
     @Test func theTraceFollowsTheCellOntoThePythonThread() async throws {
         Probe.tracedFrom.withLock { $0.removeAll() }
         py.setTrace { _, _ in Probe.noteTrace() }

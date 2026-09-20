@@ -27,10 +27,7 @@ enum Bindings {
         let function = registered[Int(slot)]
         let receiver = GILBound(receiver)
         let arguments = GILBound(arguments)
-        let result: GILBound<CPython.PyObject> = onMain {
-            GILBound(function(receiver.pointer, arguments.pointer))
-        }
-        return result.pointer
+        return onMainBinding { function(receiver.pointer, arguments.pointer) }
     }
 }
 
