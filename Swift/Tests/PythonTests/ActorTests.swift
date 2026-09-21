@@ -72,6 +72,24 @@ struct ActorTests {
         #expect(ticks == 1)
     }
 
+    @Test func anInterruptStopsACellAtItsNextBytecode() async throws {
+        let forever = try compile("""
+        while True:
+            pass
+        """)
+        let namespace = try PyRuntime.namespace()
+        let cell = Task { try await PyRuntime.execute(forever, globals: namespace) }
+
+        try await Task.sleep(for: .milliseconds(20))
+        PyRuntime.interrupt()
+
+        let clock = ContinuousClock()
+        let start = clock.now
+        let error = await #expect(throws: PythonError.self) { try await cell.value }
+        #expect(start.duration(to: clock.now) < .milliseconds(100))
+        #expect(error?.type == "KeyboardInterrupt")
+    }
+
     @Test func aBindingCarriesTheHostContext() async throws {
         let module = try #require(py.newmodule("actor_context"))
         Probe.seen.withLock { $0.removeAll() }
