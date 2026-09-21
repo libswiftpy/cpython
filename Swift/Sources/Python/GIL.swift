@@ -136,6 +136,8 @@ func onMainBinding(_ body: @MainActor () -> PyRef?) -> PyRef? {
     let state = PyEval_SaveThread()
     DispatchQueue.main.sync {
         MainActor.assumeIsolated {
+            Bindings.calledFromPythonThread = true
+            defer { Bindings.calledFromPythonThread = false }
             if let carry {
                 carry { result = body() }
             } else {

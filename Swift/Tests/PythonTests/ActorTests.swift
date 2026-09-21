@@ -90,6 +90,43 @@ struct ActorTests {
         #expect(error?.type == "KeyboardInterrupt")
     }
 
+    @Test func aBindingCanHaveTheCellWaitForSwiftWork() async throws {
+        let module = try #require(py.newmodule("actor_waiting"))
+        module.def("answer()") { _, _ in
+            PyAPI.return {
+                try PyWait.result { complete in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                        complete(.success(try? 42.toPython()))
+                    }
+                }
+            }
+        }
+        module.def("failing()") { _, _ in
+            PyAPI.return {
+                try PyWait.result { complete in
+                    DispatchQueue.main.async { complete(.failure(.ValueError("no"))) }
+                }
+            }
+        }
+
+        let code = try compile("""
+        import actor_waiting
+        waited_answer = actor_waiting.answer()
+        try:
+            actor_waiting.failing()
+        except ValueError as error:
+            waited_failure = str(error)
+        """)
+        try await PyRuntime.execute(code)
+        #expect(try PyRuntime.evaluate("waited_answer") == "42")
+        #expect(try PyRuntime.evaluate("waited_failure") == "no")
+
+        // Main has nowhere to wait.
+        #expect(throws: PythonError.self) {
+            try PyRuntime.run("import actor_waiting; actor_waiting.answer()")
+        }
+    }
+
     @Test func aBindingCarriesTheHostContext() async throws {
         let module = try #require(py.newmodule("actor_context"))
         Probe.seen.withLock { $0.removeAll() }
