@@ -23,11 +23,18 @@ enum Bindings {
         return unsafeBitCast(thunk, to: PyCFunction.self)
     }
 
+    /// Whether the binding on main was called across the hop, so its caller
+    /// is a thread that can wait. Main only.
+    nonisolated(unsafe) static var calledFromPythonThread = false
+
     fileprivate static func call(_ slot: Int32, _ receiver: PyRef?, _ arguments: PyRef?) -> PyRef? {
         let function = registered[Int(slot)]
         let receiver = GILBound(receiver)
         let arguments = GILBound(arguments)
-        return onMainBinding { function(receiver.pointer, arguments.pointer) }
+        let result = onMainBinding { function(receiver.pointer, arguments.pointer) }
+        guard let result, result == PyWait.sentinel.reference else { return result }
+        Py_DecRef(result)
+        return PyWait.finish()
     }
 }
 
