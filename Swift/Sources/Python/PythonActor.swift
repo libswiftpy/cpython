@@ -27,6 +27,8 @@ final class PythonExecutor: SerialExecutor {
     private let jobs = Mutex<[UnownedJob]>([])
     private let wake = DispatchSemaphore(value: 0)
     private nonisolated(unsafe) var thread: Thread?
+    /// CPython's ident for the thread, what an async exception is addressed to.
+    private(set) nonisolated(unsafe) var threadIdent: UInt = 0
 
     private func start() {
         precondition(Py_IsInitialized() != 0, "start the interpreter before using PythonActor")
@@ -53,6 +55,7 @@ final class PythonExecutor: SerialExecutor {
         // One thread state for the life of the thread, so the trace hook,
         // threading.local and contextvars carry across jobs.
         _ = PyGILState_Ensure()
+        threadIdent = PyThread_get_thread_ident()
         PyRuntime.prepareThread?()
         var parked = PyEval_SaveThread()
 
@@ -81,6 +84,20 @@ public extension PyRuntime {
     /// per thread, such as asyncio's running loop. Set it before the first
     /// use of the actor.
     nonisolated(unsafe) static var prepareThread: (@Sendable () -> Void)?
+
+    /// Raises `KeyboardInterrupt` in whatever ``PythonActor`` is running, at
+    /// its next bytecode: a blocking C call returns first. Needs the GIL,
+    /// which main has while its run loop is awake. One that has not landed
+    /// by the time the code ends stays pending for whatever runs next, so
+    /// the caller withdraws it then with ``clearInterrupt()``.
+    nonisolated static func interrupt() {
+        guard let interrupt = exceptionType(named: "KeyboardInterrupt") else { return }
+        PyThreadState_SetAsyncExc(PythonExecutor.shared.threadIdent, interrupt)
+    }
+
+    nonisolated static func clearInterrupt() {
+        PyThreadState_SetAsyncExc(PythonExecutor.shared.threadIdent, nil)
+    }
 
     /// Runs a code object on ``PythonActor``, off the main actor. The same
     /// call as the synchronous one, for code that should not hold main up.
