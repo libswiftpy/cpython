@@ -31,7 +31,7 @@ public enum PyWait {
 
     /// What a binding returned to say it waits: not a value, but a marker the
     /// dispatcher recognizes.
-    nonisolated(unsafe) static let sentinel = PyObject(consuming: PyDict_New())
+    static let sentinel = PyObject(consuming: PyDict_New())
 
     /// One at a time: the waiting thread takes it before it parks.
     private static let current = Mutex<Pending?>(nil)
