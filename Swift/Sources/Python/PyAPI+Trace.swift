@@ -48,6 +48,23 @@ public extension PyAPI {
         }
     }
 
+    /// The innermost frame of the running stack whose source passes `matches`,
+    /// as its source and line. Call with the GIL held, from code Python called.
+    nonisolated static func frame(where matches: (String) -> Bool) -> (source: String, line: Int)? {
+        // Unchecked: no thread state, as off Python's thread, means no stack.
+        guard let state = PyThreadState_GetUnchecked() else { return nil }
+        var current = PyThreadState_GetFrame(state)
+        while let frame = current {
+            defer { Py_DecRef(UnsafeMutableRawPointer(frame).assumingMemoryBound(to: CPython.PyObject.self)) }
+            let view = Frame(reference: frame)
+            if let source = view.sourceLocation, matches(source), let line = view.lineNumber {
+                return (source, line)
+            }
+            current = PyFrame_GetBack(frame)
+        }
+        return nil
+    }
+
     /// Called on whichever thread runs the traced code, with the GIL held.
     typealias TraceFunction = @Sendable (Frame, TraceEvent) -> Void
 
