@@ -110,8 +110,12 @@ func onMain<T>(_ body: @MainActor () -> T) -> T {
     let carry = PyBridge.carryContext?()
     let state = PyEval_SaveThread()
     defer { PyEval_RestoreThread(state) }
+    // Parked until main returns, so main alone touches it meanwhile.
+    nonisolated(unsafe) let caller = state
     DispatchQueue.main.sync {
         MainActor.assumeIsolated {
+            Bindings.callerThreadState = caller
+            defer { Bindings.callerThreadState = nil }
             guard let carry else {
                 result = body()
                 return
@@ -134,10 +138,15 @@ func onMainBinding(_ body: @MainActor () -> PyRef?) -> PyRef? {
     nonisolated(unsafe) var raised: PyRef?
     let carry = PyBridge.carryContext?()
     let state = PyEval_SaveThread()
+    nonisolated(unsafe) let caller = state
     DispatchQueue.main.sync {
         MainActor.assumeIsolated {
             Bindings.calledFromPythonThread = true
-            defer { Bindings.calledFromPythonThread = false }
+            Bindings.callerThreadState = caller
+            defer {
+                Bindings.calledFromPythonThread = false
+                Bindings.callerThreadState = nil
+            }
             if let carry {
                 carry { result = body() }
             } else {

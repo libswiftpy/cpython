@@ -1,4 +1,5 @@
 import CPython
+import Foundation
 
 public extension PyAPI {
     /// An interpreter trace event shared with SwiftPy's pocketpy backend.
@@ -52,7 +53,20 @@ public extension PyAPI {
     /// as its source and line. Call with the GIL held, from code Python called.
     nonisolated static func frame(where matches: (String) -> Bool) -> (source: String, line: Int)? {
         // Unchecked: no thread state, as off Python's thread, means no stack.
-        guard let state = PyThreadState_GetUnchecked() else { return nil }
+        if let state = PyThreadState_GetUnchecked(), let found = frame(in: state, where: matches) {
+            return found
+        }
+        // A binding hopped to main: the stack is the waiting thread's.
+        if Thread.isMainThread, let caller = Bindings.callerThreadState {
+            return frame(in: caller, where: matches)
+        }
+        return nil
+    }
+
+    private nonisolated static func frame(
+        in state: UnsafeMutablePointer<PyThreadState>,
+        where matches: (String) -> Bool
+    ) -> (source: String, line: Int)? {
         var current = PyThreadState_GetFrame(state)
         while let frame = current {
             defer { Py_DecRef(UnsafeMutableRawPointer(frame).assumingMemoryBound(to: CPython.PyObject.self)) }

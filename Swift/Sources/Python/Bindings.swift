@@ -27,6 +27,10 @@ enum Bindings {
     /// is a thread that can wait. Main only.
     nonisolated(unsafe) static var calledFromPythonThread = false
 
+    /// The waiting thread's state across a hop, which holds the stack the call
+    /// came from: main's own has none. Main only.
+    nonisolated(unsafe) static var callerThreadState: UnsafeMutablePointer<PyThreadState>?
+
     fileprivate static func call(_ slot: Int32, _ receiver: PyRef?, _ arguments: PyRef?) -> PyRef? {
         let function = registered[Int(slot)]
         let receiver = GILBound(receiver)
