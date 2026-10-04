@@ -50,7 +50,8 @@ if [ ! -f Makefile ]; then
 fi
 
 VERSION=$(sed -n 's/^VERSION=[[:space:]]*//p' Makefile | head -1)
-make -j"$(sysctl -n hw.ncpu)" "libpython$VERSION.a"
+# No git stamp in sys.version; see build.sh.
+make -j"$(sysctl -n hw.ncpu)" GITVERSION=true GITTAG=true GITBRANCH=true "libpython$VERSION.a"
 
 rm -rf "$DIST"
 mkdir -p "$DIST/include/python" "$DIST/lib"

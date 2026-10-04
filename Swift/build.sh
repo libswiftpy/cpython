@@ -24,7 +24,9 @@ if [ ! -f Makefile ]; then
         --without-ensurepip \
         --without-remote-debug  # sys.remote_exec: task_for_pid, useless embedded
 fi
-make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
+# No git stamp in sys.version, "(main, <date>)" as a release build has: out of
+# tree, `git describe` reads every file as missing and stamps "-dirty".
+make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)" GITVERSION=true GITTAG=true GITBRANCH=true
 
 VERSION=$(./python.exe -c 'import sys; print("%d.%d" % sys.version_info[:2])')
 
