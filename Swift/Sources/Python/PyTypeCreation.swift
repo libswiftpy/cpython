@@ -76,6 +76,13 @@ public extension PyAPI {
             PyErr_Clear()
             return nil
         }
+        // The C name too, which errors print: bare, as a Python class's is,
+        // rather than `builtins.` before a module rehomes it.
+        let bareName = PyUnicode_FromString(name)
+        if PyObject_SetAttrString(object, "__name__", bareName) != 0 {
+            PyErr_Clear()
+        }
+        Py_DecRef(bareName)
 
         createdTypes.insert(object)
         if let dtor {

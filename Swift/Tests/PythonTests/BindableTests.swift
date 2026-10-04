@@ -112,6 +112,14 @@ struct BindableTests {
         #expect(Counted(made.reference) == nil)
     }
 
+    /// Errors raised in C print the C name, which isn't `builtins.Counted`.
+    @Test func aTypeMadeWithoutAModuleHasABareCName() throws {
+        let type = UnsafeMutableRawPointer(Counted.pyType.reference).assumingMemoryBound(to: PyTypeObject.self)
+        #expect(String(cString: type.pointee.tp_name) == "Counted")
+        #expect(String(cString: UnsafeMutableRawPointer(Thing.pyType.reference)
+            .assumingMemoryBound(to: PyTypeObject.self).pointee.tp_name) == "Thing")
+    }
+
     /// A Python subclass reaches the bound `__new__` with itself as the class,
     /// and must get an instance of itself, not of the base.
     @Test func aPythonSubclassIsItsOwnType() throws {
