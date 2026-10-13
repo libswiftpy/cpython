@@ -58,6 +58,35 @@ struct PythonTests {
         #expect(captured == "still here\n")
     }
 
+    /// A window's callbacks, defined before a new session, still find their names.
+    @Test func replacingMainKeepsTheOldNamespaceForItsFunctions() throws {
+        // Frames other tests left suspended hold the namespace they ran in.
+        cpy.replaceMain()
+        try PyRuntime.run("""
+        import sys
+        color = 'teal'
+        def show():
+            return color
+        sys._kept = show
+        """)
+
+        cpy.replaceMain()
+
+        #expect(try PyRuntime.evaluate("'color' in globals()") == "False")
+        #expect(try PyRuntime.evaluate("__name__") == "__main__")
+        #expect(try PyRuntime.evaluate("__import__('sys')._kept()") == "teal")
+
+        // Freed once nothing refers to it.
+        try PyRuntime.run("""
+        import gc, sys, weakref
+        kept = weakref.ref(sys._kept)
+        del sys._kept
+        gc.collect()
+        """)
+        #expect(try PyRuntime.evaluate("kept() is None") == "True")
+        cpy.clearMain()
+    }
+
     /// The pure-Python stdlib the package stages: functools and the modules it
     /// reaches, including the ones `collections` defers with a lazy import.
     @Test func importsTheStagedStdlib() throws {

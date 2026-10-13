@@ -255,6 +255,36 @@ public extension PyAPI {
         PyErr_Clear()
     }
 
+    /// Puts a new `__main__` in place, with the old one's dunders. Functions
+    /// from before keep the old namespace as their globals, so a window still
+    /// shown keeps working, until nothing refers to them.
+    func replaceMain() {
+        guard let old = PyImport_AddModule("__main__"),
+              let oldNamespace = PyModule_GetDict(old),
+              let names = PyDict_Keys(oldNamespace) else { return }
+        defer { Py_DecRef(names) }
+        guard let fresh = PyModule_New("__main__") else {
+            PyErr_Clear()
+            return
+        }
+        defer { Py_DecRef(fresh) }
+
+        if let namespace = PyModule_GetDict(fresh) {
+            for index in 0..<PyList_Size(names) {
+                guard let key = PyList_GetItem(names, index),
+                      let name = String(key), name.hasPrefix("__"),
+                      // The old cells' own annotations.
+                      name != "__annotations__", name != "__annotate__",
+                      let value = PyDict_GetItem(oldNamespace, key) else { continue }
+                PyDict_SetItem(namespace, key, value)
+            }
+        }
+        if let modules = PyImport_GetModuleDict() {
+            PyDict_SetItemString(modules, "__main__", fresh)
+        }
+        PyErr_Clear()
+    }
+
     /// Sets `error` as the raised exception. Expects the GIL held.
     nonisolated static func raise(_ error: PythonError) {
         PyErr_SetString(PyRuntime.exceptionType(named: error.type), error.value)
