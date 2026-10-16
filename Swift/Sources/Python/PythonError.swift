@@ -78,12 +78,27 @@ public extension PythonError {
 }
 
 extension PyRuntime {
-    /// The builtin exception type of that name, falling back to `RuntimeError`
-    /// for one this build does not have.
+    /// The builtin exception type of that name, or a module's for a qualified
+    /// one such as `audio.AudioError`, falling back to `RuntimeError` for one
+    /// this build does not have.
     nonisolated static func exceptionType(named name: String) -> PyRef? {
         guard let builtins = PyEval_GetBuiltins() else { return nil }
-        return PyDict_GetItemString(builtins, name)
-            ?? PyDict_GetItemString(builtins, "RuntimeError")
+        let fallback = PyDict_GetItemString(builtins, "RuntimeError")
+        guard let dot = name.lastIndex(of: ".") else {
+            return PyDict_GetItemString(builtins, name) ?? fallback
+        }
+        // Only an imported module's: raising mustn't run an import. Borrowed
+        // through the dicts, as the builtin lookup is.
+        guard let modules = PyImport_GetModuleDict(),
+              let module = PyDict_GetItemString(modules, String(name[..<dot])),
+              let namespace = PyModule_GetDict(module),
+              let type = PyDict_GetItemString(namespace, String(name[name.index(after: dot)...])),
+              let base = PyDict_GetItemString(builtins, "BaseException"),
+              PyObject_IsSubclass(type, base) == 1 else {
+            PyErr_Clear()
+            return fallback
+        }
+        return type
     }
 }
 

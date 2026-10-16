@@ -70,6 +70,35 @@ struct ModuleTests {
         #expect(try PyRuntime.evaluate("caught") == "no good")
     }
 
+    @Test func aBindingRaisesAModulesExceptionByQualifiedName() throws {
+        let module = try #require(cpy.newmodule("qualified_module"))
+        try PyRuntime.run("""
+        import qualified_module
+        class CustomError(Exception): pass
+        qualified_module.CustomError = CustomError
+        qualified_module.NotAnError = 3
+        """)
+        module.def("fail(name: str)") { _, args in
+            PyAPI.return {
+                let name = String(PyTuple_GetItem(args, 0)) ?? ""
+                throw PythonError(type: name, value: "no good")
+            }
+        }
+
+        try PyRuntime.run("""
+        def raised(name):
+            try:
+                qualified_module.fail(name)
+            except Exception as error:
+                return type(error).__name__
+        """)
+        #expect(try PyRuntime.evaluate("raised('qualified_module.CustomError')") == "CustomError")
+        // Not an exception, or not imported: the fallback, with nothing left set.
+        #expect(try PyRuntime.evaluate("raised('qualified_module.NotAnError')") == "RuntimeError")
+        #expect(try PyRuntime.evaluate("raised('no_such_module.CustomError')") == "RuntimeError")
+        #expect(PyErr_Occurred() == nil)
+    }
+
     @Test func aBindingReturningNothingGivesNone() throws {
         let module = try #require(cpy.newmodule("none_module"))
         module.def("returns_nothing()") { _, _ in
