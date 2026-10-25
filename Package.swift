@@ -64,6 +64,11 @@ let package = Package(
         .executable(name: "pyrun", targets: ["pyrun"]),
         .executable(name: "pybench", targets: ["pybench"]),
     ],
+    // Off by default: MLX adds about 18 MB, and nothing of it is linked
+    // without the trait. Swift/build-mlx.sh stages what it needs.
+    traits: [
+        .trait(name: "mlx", description: "Build in Apple's MLX as mlx.core, with mlx.nn and mlx.optimizers."),
+    ],
     targets: [
         // The C API itself, imported through a module map.
         .systemLibrary(name: "CPython", path: "Swift/Sources/CPython"),
@@ -439,3 +444,45 @@ let package = Package(
         .testTarget(name: "PythonTests", dependencies: ["Python"], path: "Swift/Tests/PythonTests"),
     ]
 )
+
+// MLX, behind the mlx trait. One static library per SDK in an xcframework, so
+// SwiftPM picks the simulator or device slice itself, unlike libpython's.
+let mlxDistribution = "\(packageDirectory)/Swift/.mlx-dist/MLXCore.xcframework"
+if FileManager.default.fileExists(atPath: mlxDistribution) {
+    // Resource targets can't vary by platform, so each Metal platform's
+    // kernels get one of their own; a simulator slice has no Metal.
+    let kernels = [("macos", Platform.macOS), ("ios", .iOS), ("xros", .visionOS)].map { os, platform in
+        let path = "Swift/Sources/mlx_metal_\(os)"
+        let staged = FileManager.default.fileExists(atPath: "\(packageDirectory)/\(path)/default.metallib")
+        return (
+            Target.target(name: "mlx_metal_\(os)", path: path, resources: staged ? [.copy("default.metallib")] : []),
+            Target.Dependency.target(name: "mlx_metal_\(os)", condition: .when(platforms: [platform]))
+        )
+    }
+    package.targets += kernels.map(\.0) + [
+        .binaryTarget(name: "MLXCore", path: "Swift/.mlx-dist/MLXCore.xcframework"),
+        .target(
+            name: "Cmlxcore",
+            dependencies: ["CPython", "MLXCore"],
+            path: "Modules",
+            sources: ["_swiftpy/mlx/shim.c"],
+            publicHeadersPath: "_swiftpy/mlx",
+            cSettings: moduleSettings,
+            linkerSettings: [
+                .linkedLibrary("c++"),
+                .linkedFramework("Accelerate"),
+                .linkedFramework("Metal"),
+                .linkedFramework("QuartzCore"),
+                .linkedFramework("Foundation"),
+            ]
+        ),
+        .target(
+            name: "mlx",
+            dependencies: ["PythonModules", "Cmlxcore"] + kernels.map(\.1),
+            path: "Swift/Sources/mlx",
+            resources: [.copy("mlx")]
+        ),
+    ]
+    package.targets.first { $0.name == "Python" }?.dependencies
+        .append(.target(name: "mlx", condition: .when(traits: ["mlx"])))
+}

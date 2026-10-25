@@ -25,6 +25,9 @@ import _socket
 #if os(macOS)
 import _posixsubprocess
 #endif
+#if mlx
+import mlx
+#endif
 
 @_exported import struct PythonModules.PythonModule
 
@@ -50,6 +53,9 @@ public enum PyRuntime {
         ]
         #if os(macOS)
         modules.append(.posixSubprocess)
+        #endif
+        #if mlx
+        modules.append(.mlx)
         #endif
         return modules
     }
