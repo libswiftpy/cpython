@@ -1,5 +1,6 @@
 """Zips the stdlib modules listed in a manifest as bytecode, for zipimport:
-`stage_stdlib.py <Lib dir> <manifest> <output zip>`.
+`stage_stdlib.py <Lib dir> <manifest> <output zip>`. Bundled packages such as
+PIL and mlx are zipped by it too.
 
 Bytecode only: docstrings and signatures survive in it, so help() works;
 only inspect.getsource and the source line under a stdlib traceback frame
@@ -48,7 +49,7 @@ try:
     # Legacy layout (x.pyc beside x.py) is the one zipimport looks for;
     # unchecked hashes spare it a stat of the source on every import.
     # ddir is what tracebacks show instead of the build machine's staging path.
-    if not compileall.compile_dir(staging, ddir="stdlib", quiet=1, legacy=True,
+    if not compileall.compile_dir(staging, ddir=output.stem, quiet=1, legacy=True,
                                   invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH):
         sys.exit("stage_stdlib: compile failed")
 

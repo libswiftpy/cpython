@@ -20,6 +20,7 @@ import _blake2
 import _sqlite3
 import unicodedata
 import pyexpat
+import PIL
 import select
 import _socket
 #if os(macOS)
@@ -49,7 +50,7 @@ public enum PyRuntime {
         var modules: [PythonModule] = [
             .encodings, .appleSupport, .stdlib, .zlib, .math, .random, .sha2, .lsprof,
             .struct, .binascii, .csv, .array, .cmath, .md5, .sha1, .sha3, .blake2,
-            .sqlite3, .unicodedata, .pyexpat, .select, .socket,
+            .sqlite3, .unicodedata, .pyexpat, .select, .socket, .pil,
         ]
         #if os(macOS)
         modules.append(.posixSubprocess)

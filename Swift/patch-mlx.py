@@ -53,4 +53,7 @@ patch("mlx/backend/metal/CMakeLists.txt",
       '  target_compile_definitions(mlx PRIVATE SWIFTPM_BUNDLE="${MLX_SWIFTPM_BUNDLE}")\n'
       'endif()')
 
+# Compiling CPU kernels shells out to a compiler, which only macOS has.
+patch("mlx/backend/cpu/CMakeLists.txt", "if(IOS)\n", "if(IOS OR MLX_NO_CPU_COMPILER)\n")
+
 patch("python/src/CMakeLists.txt", "  FREE_THREADED\n  LTO\n", "  FREE_THREADED\n")

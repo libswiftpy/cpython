@@ -2,7 +2,7 @@
 # Builds MLX's mlx.core for the Apple SDKs and stages it for the mlx trait:
 # Swift/.mlx-dist/MLXCore.xcframework, a static library per SDK with MLX
 # linked in, each Metal platform's kernels as Swift/Sources/mlx_metal_*/
-# default.metallib, and the mlx Python package as Swift/Sources/mlx/mlx.
+# default.metallib, and the mlx Python package as Swift/Sources/mlx/mlx.zip.
 #
 #   ./Swift/build-mlx.sh                          # all five SDKs
 #   ./Swift/build-mlx.sh macosx iphonesimulator   # just these
@@ -41,10 +41,22 @@ for SDK in "${SDKS[@]}"; do
         macosx)          SYSTEM=Darwin;   MIN=15.4; OS=macos; METAL=ON;  BUNDLE=cpython_mlx_metal_macos ;;
         iphoneos)        SYSTEM=iOS;      MIN=18.4; OS=ios;   METAL=ON;  BUNDLE=cpython_mlx_metal_ios ;;
         iphonesimulator) SYSTEM=iOS;      MIN=18.4; OS=ios;   METAL=OFF; BUNDLE= ;;
-        xros)            SYSTEM=visionOS; MIN=2.4;  OS=xros;  METAL=ON;  BUNDLE=cpython_mlx_metal_xros ;;
-        xrsimulator)     SYSTEM=visionOS; MIN=2.4;  OS=xros;  METAL=OFF; BUNDLE= ;;
+        xros)            SYSTEM=Darwin;   MIN=2.4;  OS=xros;  METAL=ON;  BUNDLE=cpython_mlx_metal_xros ;;
+        xrsimulator)     SYSTEM=Darwin;   MIN=2.4;  OS=xros;  METAL=OFF; BUNDLE= ;;
         *) echo "unknown SDK $SDK" >&2; exit 1 ;;
     esac
+    # CMake before 3.28 has no visionOS, and refuses its SDK as iOS: configure
+    # it as macOS, whose version flag clang lets an explicit -target override.
+    PLATFORM=(-DCMAKE_OSX_DEPLOYMENT_TARGET=$MIN)
+    case "$SDK" in
+        xros)        TRIPLE=arm64-apple-xros$MIN ;;
+        xrsimulator) TRIPLE=arm64-apple-xros$MIN-simulator ;;
+        *)           TRIPLE= ;;
+    esac
+    if [ -n "$TRIPLE" ]; then
+        TARGET="-target $TRIPLE -Wno-overriding-option"
+        PLATFORM=(-DCMAKE_OSX_DEPLOYMENT_TARGET=15.4 -DCMAKE_C_FLAGS="$TARGET" -DCMAKE_CXX_FLAGS="$TARGET" -DMLX_NO_CPU_COMPILER=ON)
+    fi
     PYDIST="$ROOT/Swift/.cpython-dist-$SDK"
     [ "$SDK" = macosx ] && PYDIST="$ROOT/Swift/.cpython-dist"
     [ -d "$PYDIST/include/python" ] || { echo "CPython is not staged for $SDK" >&2; exit 1; }
@@ -54,8 +66,8 @@ for SDK in "${SDKS[@]}"; do
     # MLX_METAL_JIT compiles most kernels on first use, which keeps the
     # metallib at 3.5 MB instead of 216.
     cmake -S "$SRC" -B "$BUILD" \
-        -DCMAKE_SYSTEM_NAME=$SYSTEM -DCMAKE_OSX_SYSROOT=$SDK -DCMAKE_OSX_ARCHITECTURES=arm64 \
-        -DCMAKE_OSX_DEPLOYMENT_TARGET=$MIN -DCMAKE_BUILD_TYPE=MinSizeRel -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_SYSTEM_NAME=$SYSTEM -DCMAKE_OSX_SYSROOT="$(xcrun --sdk $SDK --show-sdk-path)" -DCMAKE_OSX_ARCHITECTURES=arm64 \
+        "${PLATFORM[@]}" -DCMAKE_BUILD_TYPE=MinSizeRel -DBUILD_SHARED_LIBS=OFF \
         -DMLX_BUILD_TESTS=OFF -DMLX_BUILD_EXAMPLES=OFF -DMLX_BUILD_BENCHMARKS=OFF \
         -DMLX_BUILD_PYTHON_BINDINGS=ON -DMLX_BUILD_PYTHON_STUBS=OFF -DMLX_USE_CCACHE=OFF \
         -DMLX_BUILD_METAL=$METAL -DMLX_METAL_JIT=ON -DMLX_METAL_SDK=$SDK \
@@ -85,10 +97,9 @@ for SDK in "${SDKS[@]}"; do
     shared_deps
 done
 
-# The Python half; mlx is a namespace package, so it has no __init__.py.
-rm -rf "$ROOT/Swift/Sources/mlx/mlx"
-rsync -a --exclude "__pycache__" --exclude "*.pyi" --exclude "py.typed" --exclude "_stub_patterns.txt" \
-    "$SRC/python/mlx/" "$ROOT/Swift/Sources/mlx/mlx/"
+# The Python half, as bytecode in a zip, by the stdlib's own script.
+"$HOST_PYTHON" -I -B "$ROOT/Swift/stage_stdlib.py" \
+    "$SRC/python" "$ROOT/Swift/Sources/mlx/modules.txt" "$ROOT/Swift/Sources/mlx/mlx.zip"
 
 # Every staged slice, whichever ran this time.
 rm -rf "$DIST/MLXCore.xcframework"

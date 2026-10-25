@@ -9,7 +9,7 @@ public extension PythonModule {
             builtins: [
                 Builtin("mlx.core", unsafeBitCast(CmlxcoreInitializer0(), to: PythonModuleInitializer.self)),
             ],
-            searchPaths: Bundle.module.resourceURL.map { [$0.path] } ?? []
+            searchPaths: Bundle.module.url(forResource: "mlx", withExtension: "zip").map { [$0.path] } ?? []
         )
     }
 }

@@ -190,5 +190,7 @@ Swift/Sources/Python/PythonHome/lib/
 Swift/Sources/encodings/encodings/
 Swift/Sources/_apple_support/_apple_support.py
 Swift/.mlx-dist/
-Swift/Sources/mlx/mlx/
+Swift/Sources/mlx/mlx.zip
 Swift/Sources/mlx_metal_*/default.metallib
+Modules/_pillow/
+Swift/Sources/PIL/PIL.zip

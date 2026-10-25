@@ -132,6 +132,17 @@ Extension modules would be a different matter: `.so` files under
 `lib-dynload/` have to be signed as part of the app, and iOS cannot `dlopen`
 them at all.
 
+## Third-party modules
+
+**Pillow** is always built in, as `PIL`. `Swift/stage-pillow.sh`, which
+`build.sh` runs, stages its sources and those of libjpeg-turbo, FreeType and
+libwebp in `Modules/_pillow`, and SwiftPM compiles them for whatever platform
+is being built. It adds about 2.8 MB: JPEG, PNG, GIF, WebP and FreeType text.
+
+**MLX** is behind the `mlx` trait, as `mlx.core` plus its Python package.
+`Swift/build-mlx.sh` builds it per SDK with CMake into
+`Swift/.mlx-dist/MLXCore.xcframework`; it adds about 18 MB.
+
 ## Platforms
 
 Each platform is built out of tree, in `cross-build/<triple>`, and staged
