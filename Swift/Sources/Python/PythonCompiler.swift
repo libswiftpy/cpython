@@ -7,8 +7,8 @@ public enum PythonCompiler {
         case execution
         /// A single expression, whose value is the result.
         case evaluation
-        /// A console cell: statements run and each expression echoes its value
-        /// through `sys.displayhook`.
+        /// A notebook cell: statements run and the last one, when it's an
+        /// expression, echoes its value through `sys.displayhook`.
         case single
 
         var start: Int32 {

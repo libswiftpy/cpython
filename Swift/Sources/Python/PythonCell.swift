@@ -80,15 +80,19 @@ extension PyRuntime {
     }
 
     private nonisolated static let helperSource = """
-        import _ast
+        import ast
 
-        # CPython's own `single` input rejects more than one statement, but
-        # the compiler is happy to build single-mode bytecode from Interactive.
+        # As other notebooks do, only the last line's value shows, unless a `;`
+        # ends it.
         def _compile_cell(source, filename):
-            tree = compile(source, filename, 'exec', 0x0400 | 0x2000)
-            # 0x2000 again: the flag does not survive the AST, and a cell with
-            # a top-level await has to compile to a coroutine here too.
-            return compile(_ast.Interactive(body=tree.body), filename, 'single', 0x2000)
+            tree = ast.parse(source, filename)
+            last = tree.body[-1] if tree.body else None
+            if isinstance(last, ast.Expr) and not source.rstrip().endswith(';'):
+                hook = ast.parse('__import__("sys").displayhook()', mode='eval').body
+                hook.args.append(last.value)
+                last.value = ast.fix_missing_locations(ast.copy_location(hook, last.value))
+            # 0x2000: a top-level await compiles to a coroutine.
+            return compile(tree, filename, 'exec', 0x2000)
 
         # What a Swift-backed __await__ returns: an iterator that hands the
         # object to the driver, which sends the result of the work back in.

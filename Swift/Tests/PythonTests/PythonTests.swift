@@ -142,11 +142,20 @@ struct PythonTests {
         try PyRuntime.redirectOutput { captured += $0 }
         defer { try? PyRuntime.redirectOutput(to: nil) }
 
-        // Every expression statement echoes, which plain `single` input cannot
-        // do for more than one statement.
+        // Only the last statement echoes, as in other notebooks.
         let cell = try PythonCompiler.compile("a = 1\na + 1\nprint('hi')\n2 + 2", mode: .single)
         try PyRuntime.execute(cell)
-        #expect(captured == "2\nhi\n4\n")
+        #expect(captured == "hi\n4\n")
+    }
+
+    @Test func aTrailingSemicolonHidesTheLastValue() throws {
+        nonisolated(unsafe) var captured = ""
+        try PyRuntime.redirectOutput { captured += $0 }
+        defer { try? PyRuntime.redirectOutput(to: nil) }
+
+        let cell = try PythonCompiler.compile("print('hi')\n'é' ;", mode: .single)
+        try PyRuntime.execute(cell)
+        #expect(captured == "hi\n")
     }
 
     @Test(arguments: [PythonCompiler.Mode.execution, .evaluation, .single])
