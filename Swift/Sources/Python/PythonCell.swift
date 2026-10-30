@@ -85,14 +85,19 @@ extension PyRuntime {
         # As other notebooks do, only the last line's value shows, unless a `;`
         # ends it.
         def _compile_cell(source, filename):
-            tree = ast.parse(source, filename)
-            last = tree.body[-1] if tree.body else None
-            if isinstance(last, ast.Expr) and not source.rstrip().endswith(';'):
-                hook = ast.parse('__import__("sys").displayhook()', mode='eval').body
-                hook.args.append(last.value)
-                last.value = ast.fix_missing_locations(ast.copy_location(hook, last.value))
-            # 0x2000: a top-level await compiles to a coroutine.
-            return compile(tree, filename, 'exec', 0x2000)
+            try:
+                tree = ast.parse(source, filename)
+                last = tree.body[-1] if tree.body else None
+                if isinstance(last, ast.Expr) and not source.rstrip().endswith(';'):
+                    hook = ast.parse('__import__("sys").displayhook()', mode='eval').body
+                    hook.args.append(last.value)
+                    last.value = ast.fix_missing_locations(ast.copy_location(hook, last.value))
+                # 0x2000: a top-level await compiles to a coroutine.
+                return compile(tree, filename, 'exec', 0x2000)
+            except SyntaxError as error:
+                # Returned for Swift to raise, so its traceback starts at the
+                # cell rather than in this helper and ast.
+                return error.with_traceback(None)
 
         # What a Swift-backed __await__ returns: an iterator that hands the
         # object to the driver, which sends the result of the work back in.

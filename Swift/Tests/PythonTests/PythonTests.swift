@@ -256,6 +256,18 @@ struct PythonTests {
         }
     }
 
+    @Test func cellSyntaxErrorsStartAtTheCell() throws {
+        do {
+            _ = try PythonCompiler.compile("print('a)", filename: "<cell>", mode: .single)
+            Issue.record("expected a SyntaxError")
+        } catch {
+            #expect(error.type == "SyntaxError")
+            #expect(error.traceback?.contains("<cell>") == true)
+            #expect(error.traceback?.contains("_compile_cell") == false)
+            #expect(error.traceback?.contains("ast.py") == false)
+        }
+    }
+
     @Test func cellErrorsUseCPythonTracebacks() throws {
         do {
             let cell = try PythonCompiler.compile("raise ValueError('nope')", filename: "<cell>", mode: .single)

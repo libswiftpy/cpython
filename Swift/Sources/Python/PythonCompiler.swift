@@ -35,6 +35,12 @@ public enum PythonCompiler {
             code = PyObject(
                 consuming: try PyRuntime.call(compileCell, with: [source, filename])
             )
+            // A syntax error comes back rather than raised; see the helper.
+            // Py_TPFLAGS_BASE_EXC_SUBCLASS, which Swift doesn't import.
+            if PyType_GetFlags(Py_TYPE(code.reference)) & (1 << 30) != 0 {
+                PyErr_SetRaisedException(Py_NewRef(code.reference))
+                throw PyRuntime.raisedError()
+            }
         } else {
             // Source with a top-level `await` compiles to a coroutine that
             // `execute` hands back instead of running. See PythonCoroutine.swift.
