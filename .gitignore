@@ -182,6 +182,9 @@ Python/frozen_modules/MANIFEST
 /.claude/
 CLAUDE.local.md
 
+# Local scratch space for things we or our agents do in our worktrees.
+/do-not-commit/
+
 # Swift package build products
 .build/
 .swiftpm/
