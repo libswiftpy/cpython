@@ -134,7 +134,7 @@ them at all.
 
 ## Third-party modules
 
-Packages of their own, forks of `Pillow` (about 2.8 MB) and `mlx` (about 18 MB),
+Packages of their own, forks of `Pillow` (about 7 MB) and `mlx` (about 16 MB),
 depend on the `PythonModules` product and declare a `PythonModule`. An app
 that wants one sets it before the interpreter starts:
 
