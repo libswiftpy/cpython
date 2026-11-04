@@ -1,24 +1,27 @@
 import Foundation
 import PackagePlugin
 
-/// Zips the stdlib listed in the target's modules.txt into a resource, with
-/// bytecode compiled by the python that build.sh made.
+/// Zips the modules listed in the target's modules.txt into a resource, with
+/// bytecode compiled by the python that build.sh made. A `# source: <dir>` line
+/// names where a package outside cpython keeps them; the stdlib is in `Lib`.
 @main
 struct StageStdlib: BuildToolPlugin {
     func createBuildCommands(context: PluginContext, target: Target) throws -> [Command] {
-        let package = context.package.directoryURL
+        let cpython = (context.package.dependencies.first { $0.package.id == "cpython" }?.package ?? context.package).directoryURL
         let manifest = target.directoryURL.appending(path: "modules.txt")
-        let script = package.appending(path: "Swift/stage_stdlib.py")
-        let lib = package.appending(path: "Lib")
-        let python = package.appending(path: "cross-build/\(hostArchitecture)-apple-darwin/python.exe")
-        let output = context.pluginWorkDirectoryURL.appending(path: "stdlib.zip")
+        let script = cpython.appending(path: "Swift/stage_stdlib.py")
+        let source = try String(contentsOf: manifest, encoding: .utf8).split(separator: "\n")
+            .first { $0.hasPrefix("# source: ") }?.dropFirst("# source: ".count)
+        let lib = context.package.directoryURL.appending(path: source.map(String.init) ?? "Lib")
+        let python = cpython.appending(path: "cross-build/\(hostArchitecture)-apple-darwin/python.exe")
+        let output = context.pluginWorkDirectoryURL.appending(path: "\(target.name).zip")
 
         guard FileManager.default.isExecutableFile(atPath: python.path) else {
             throw PluginError.missingPython(python.path)
         }
 
         return [.buildCommand(
-            displayName: "Staging the Python stdlib",
+            displayName: "Staging \(target.name)'s Python modules",
             executable: python,
             arguments: ["-I", "-B", script.path, lib.path, manifest.path, output.path],
             inputFiles: [manifest, script],

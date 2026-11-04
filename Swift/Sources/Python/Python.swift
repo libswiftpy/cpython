@@ -20,14 +20,10 @@ import _blake2
 import _sqlite3
 import unicodedata
 import pyexpat
-import PIL
 import select
 import _socket
 #if os(macOS)
 import _posixsubprocess
-#endif
-#if mlx
-import mlx
 #endif
 
 @_exported import struct PythonModules.PythonModule
@@ -50,16 +46,16 @@ public enum PyRuntime {
         var modules: [PythonModule] = [
             .encodings, .appleSupport, .stdlib, .zlib, .math, .random, .sha2, .lsprof,
             .struct, .binascii, .csv, .array, .cmath, .md5, .sha1, .sha3, .blake2,
-            .sqlite3, .unicodedata, .pyexpat, .select, .socket, .pil,
+            .sqlite3, .unicodedata, .pyexpat, .select, .socket,
         ]
         #if os(macOS)
         modules.append(.posixSubprocess)
         #endif
-        #if mlx
-        modules.append(.mlx)
-        #endif
         return modules
     }
+
+    /// Modules from other packages, to set before the interpreter starts.
+    public static var additionalModules: [PythonModule] = []
 
     /// The interpreter's version, e.g. `3.16.0a0 (heads/main, ...)`.
     public static var version: String { String(cString: Py_GetVersion()) }
@@ -76,7 +72,7 @@ public enum PyRuntime {
     public static func initialize(modules: [PythonModule] = []) throws(PythonError) {
         guard !isInitialized else { return }
 
-        let all = essentialModules + modules
+        let all = essentialModules + additionalModules + modules
         let searchPaths = all.flatMap(\.searchPaths)
         guard !searchPaths.isEmpty else {
             throw .ImportError("no stdlib bundled; run Swift/build.sh")

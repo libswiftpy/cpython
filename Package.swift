@@ -63,13 +63,11 @@ let package = Package(
     platforms: [.macOS("15.4"), .iOS("18.4"), .visionOS("2.4")],
     products: [
         .library(name: "Python", targets: ["Python"]),
+        // What a package of Python modules builds on, such as mlx or Pillow.
+        .library(name: "PythonModules", targets: ["PythonModules"]),
+        .plugin(name: "StageStdlib", targets: ["StageStdlib"]),
         .executable(name: "pyrun", targets: ["pyrun"]),
         .executable(name: "pybench", targets: ["pybench"]),
-    ],
-    // Off by default: MLX adds about 18 MB, and nothing of it is linked
-    // without the trait. Swift/build-mlx.sh stages what it needs.
-    traits: [
-        .trait(name: "mlx", description: "Build in Apple's MLX as mlx.core, with mlx.nn and mlx.optimizers."),
     ],
     targets: [
         // The C API itself, imported through a module map.
@@ -133,7 +131,7 @@ let package = Package(
             name: "Python",
             dependencies: ["CPython", "Cthunks", "PythonModules", "encodings", "_apple_support", "stdlib", "zlibmodule", "math", "_random", "_sha2", "_lsprof",
                            "_struct", "binascii", "_csv", "array", "cmathmodule", "_md5", "_sha1", "_sha3", "_blake2", "_sqlite3", "unicodedata", "pyexpat",
-                           "select", "_socket", .target(name: "_posixsubprocess", condition: .when(platforms: [.macOS])), "PIL"],
+                           "select", "_socket", .target(name: "_posixsubprocess", condition: .when(platforms: [.macOS]))],
             path: "Swift/Sources/Python",
             linkerSettings: systemLibraries
         ),
@@ -441,151 +439,8 @@ let package = Package(
             path: "Swift/Sources/_posixsubprocess"
         ),
 
-        // Pillow, from the sources Swift/stage-pillow.sh stages in Modules/_pillow,
-        // linked once (about 3 MB): JPEG, PNG through zlib, FreeType fonts, WebP.
-        .target(
-            name: "Cjpeg",
-            path: "Modules/_pillow/jpeg",
-            sources: [
-                "src/jcapimin.c", "src/wrapper/jcapistd-8.c", "src/wrapper/jcapistd-12.c",
-                "src/wrapper/jcapistd-16.c", "src/wrapper/jccoefct-8.c",
-                "src/wrapper/jccoefct-12.c", "src/wrapper/jccolor-8.c", "src/wrapper/jccolor-12.c",
-                "src/wrapper/jccolor-16.c", "src/wrapper/jcdctmgr-8.c",
-                "src/wrapper/jcdctmgr-12.c", "src/wrapper/jcdiffct-8.c",
-                "src/wrapper/jcdiffct-12.c", "src/wrapper/jcdiffct-16.c", "src/jchuff.c",
-                "src/jcicc.c", "src/jcinit.c", "src/jclhuff.c", "src/wrapper/jclossls-8.c",
-                "src/wrapper/jclossls-12.c", "src/wrapper/jclossls-16.c",
-                "src/wrapper/jcmainct-8.c", "src/wrapper/jcmainct-12.c",
-                "src/wrapper/jcmainct-16.c", "src/jcmarker.c", "src/jcmaster.c", "src/jcomapi.c",
-                "src/jcparam.c", "src/jcphuff.c", "src/wrapper/jcprepct-8.c",
-                "src/wrapper/jcprepct-12.c", "src/wrapper/jcprepct-16.c",
-                "src/wrapper/jcsample-8.c", "src/wrapper/jcsample-12.c",
-                "src/wrapper/jcsample-16.c", "src/jctrans.c", "src/jdapimin.c",
-                "src/wrapper/jdapistd-8.c", "src/wrapper/jdapistd-12.c",
-                "src/wrapper/jdapistd-16.c", "src/jdatadst.c", "src/jdatasrc.c",
-                "src/wrapper/jdcoefct-8.c", "src/wrapper/jdcoefct-12.c", "src/wrapper/jdcolor-8.c",
-                "src/wrapper/jdcolor-12.c", "src/wrapper/jdcolor-16.c", "src/wrapper/jddctmgr-8.c",
-                "src/wrapper/jddctmgr-12.c", "src/wrapper/jddiffct-8.c",
-                "src/wrapper/jddiffct-12.c", "src/wrapper/jddiffct-16.c", "src/jdhuff.c",
-                "src/jdicc.c", "src/jdinput.c", "src/jdlhuff.c", "src/wrapper/jdlossls-8.c",
-                "src/wrapper/jdlossls-12.c", "src/wrapper/jdlossls-16.c",
-                "src/wrapper/jdmainct-8.c", "src/wrapper/jdmainct-12.c",
-                "src/wrapper/jdmainct-16.c", "src/jdmarker.c", "src/jdmaster.c",
-                "src/wrapper/jdmerge-8.c", "src/wrapper/jdmerge-12.c", "src/jdphuff.c",
-                "src/wrapper/jdpostct-8.c", "src/wrapper/jdpostct-12.c",
-                "src/wrapper/jdpostct-16.c", "src/wrapper/jdsample-8.c",
-                "src/wrapper/jdsample-12.c", "src/wrapper/jdsample-16.c", "src/jdtrans.c",
-                "src/jerror.c", "src/jfdctflt.c", "src/wrapper/jfdctfst-8.c",
-                "src/wrapper/jfdctfst-12.c", "src/wrapper/jfdctint-8.c",
-                "src/wrapper/jfdctint-12.c", "src/wrapper/jidctflt-8.c",
-                "src/wrapper/jidctflt-12.c", "src/wrapper/jidctfst-8.c",
-                "src/wrapper/jidctfst-12.c", "src/wrapper/jidctint-8.c",
-                "src/wrapper/jidctint-12.c", "src/wrapper/jidctred-8.c",
-                "src/wrapper/jidctred-12.c", "src/jmemmgr.c", "src/jmemnobs.c", "src/jpeg_nbits.c",
-                "src/wrapper/jquant1-8.c", "src/wrapper/jquant1-12.c", "src/wrapper/jquant2-8.c",
-                "src/wrapper/jquant2-12.c", "src/wrapper/jutils-8.c", "src/wrapper/jutils-12.c",
-                "src/wrapper/jutils-16.c", "src/jaricom.c", "src/jcarith.c", "src/jdarith.c",
-            ],
-            publicHeadersPath: "include"
-        ),
-        .target(
-            name: "Cfreetype",
-            path: "Modules/_pillow/freetype",
-            sources: [
-                "src/autofit/autofit.c", "src/base/ftbase.c", "src/base/ftbbox.c",
-                "src/base/ftbdf.c", "src/base/ftbitmap.c", "src/base/ftcid.c",
-                "src/base/ftfstype.c", "src/base/ftgasp.c", "src/base/ftglyph.c",
-                "src/base/ftgxval.c", "src/base/ftinit.c", "src/base/ftmm.c", "src/base/ftotval.c",
-                "src/base/ftpatent.c", "src/base/ftpfr.c", "src/base/ftstroke.c",
-                "src/base/ftsynth.c", "src/base/fttype1.c", "src/base/ftwinfnt.c", "src/bdf/bdf.c",
-                "src/bzip2/ftbzip2.c", "src/cache/ftcache.c", "src/cff/cff.c",
-                "src/cid/type1cid.c", "src/gzip/ftgzip.c", "src/hvf/hvf.c", "src/lzw/ftlzw.c",
-                "src/pcf/pcf.c", "src/pfr/pfr.c", "src/psaux/psaux.c", "src/pshinter/pshinter.c",
-                "src/psnames/psnames.c", "src/raster/raster.c", "src/sdf/sdf.c", "src/sfnt/sfnt.c",
-                "src/smooth/smooth.c", "src/svg/svg.c", "src/truetype/truetype.c",
-                "src/type1/type1.c", "src/type42/type42.c", "src/winfonts/winfnt.c",
-                "src/base/ftsystem.c", "src/base/ftdebug.c",
-            ],
-            publicHeadersPath: "include",
-            cSettings: [.define("FT2_BUILD_LIBRARY")]
-        ),
-        .target(
-            name: "Cwebp",
-            path: "Modules/_pillow/webp",
-            sources: ["src/dec", "src/dsp", "src/enc", "src/utils", "src/demux", "src/mux", "sharpyuv"],
-            publicHeadersPath: "include",
-            cSettings: [.headerSearchPath(".")]
-        ),
-        .target(
-            name: "CPIL",
-            dependencies: ["CPython", "Cjpeg", "Cfreetype", "Cwebp"],
-            path: "Modules",
-            sources: [
-                "_pillow/Pillow/src/_imaging.c", "_pillow/Pillow/src/decode.c", "_pillow/Pillow/src/encode.c",
-                "_pillow/Pillow/src/map.c", "_pillow/Pillow/src/display.c", "_pillow/Pillow/src/outline.c",
-                "_pillow/Pillow/src/path.c", "_pillow/Pillow/src/libImaging", "_pillow/Pillow/src/_imagingft.c",
-                "_pillow/Pillow/src/_webp.c", "_pillow/Pillow/src/_imagingmath.c",
-                "_pillow/Pillow/src/_imagingmorph.c", "_swiftpy/PIL/shim.c",
-            ],
-            publicHeadersPath: "_swiftpy/PIL",
-            cSettings: pythonHeaders + [
-                .define("HAVE_LIBJPEG"), .define("HAVE_LIBZ"), .define("PILLOW_VERSION", to: "\"13.0.0\""),
-            ],
-            linkerSettings: [.linkedLibrary("z")]
-        ),
-        .target(
-            name: "PIL",
-            dependencies: ["PythonModules", "CPIL"],
-            path: "Swift/Sources/PIL",
-            exclude: ["modules.txt"],
-            resources: [.copy("PIL.zip")]
-        ),
-
         .executableTarget(name: "pyrun", dependencies: ["Python"], path: "Swift/Sources/pyrun"),
         .executableTarget(name: "pybench", dependencies: ["Python"], path: "Swift/Sources/pybench"),
         .testTarget(name: "PythonTests", dependencies: ["Python"], path: "Swift/Tests/PythonTests"),
     ]
 )
-
-// MLX, behind the mlx trait. One static library per SDK in an xcframework, so
-// SwiftPM picks the simulator or device slice itself, unlike libpython's.
-let mlxDistribution = "\(packageDirectory)/Swift/.mlx-dist/MLXCore.xcframework"
-if FileManager.default.fileExists(atPath: mlxDistribution) {
-    // Resource targets can't vary by platform, so each Metal platform's
-    // kernels get one of their own; a simulator slice has no Metal.
-    let kernels = [("macos", Platform.macOS), ("ios", .iOS), ("xros", .visionOS)].map { os, platform in
-        let path = "Swift/Sources/mlx_metal_\(os)"
-        let staged = FileManager.default.fileExists(atPath: "\(packageDirectory)/\(path)/default.metallib")
-        return (
-            Target.target(name: "mlx_metal_\(os)", path: path, resources: staged ? [.copy("default.metallib")] : []),
-            Target.Dependency.target(name: "mlx_metal_\(os)", condition: .when(platforms: [platform]))
-        )
-    }
-    package.targets += kernels.map(\.0) + [
-        .binaryTarget(name: "MLXCore", path: "Swift/.mlx-dist/MLXCore.xcframework"),
-        .target(
-            name: "Cmlxcore",
-            dependencies: ["CPython", "MLXCore"],
-            path: "Modules",
-            sources: ["_swiftpy/mlx/shim.c"],
-            publicHeadersPath: "_swiftpy/mlx",
-            cSettings: moduleSettings,
-            linkerSettings: [
-                .linkedLibrary("c++"),
-                .linkedFramework("Accelerate"),
-                .linkedFramework("Metal"),
-                .linkedFramework("QuartzCore"),
-                .linkedFramework("Foundation"),
-            ]
-        ),
-        .target(
-            name: "mlx",
-            dependencies: ["PythonModules", "Cmlxcore"] + kernels.map(\.1),
-            path: "Swift/Sources/mlx",
-            exclude: ["modules.txt"],
-            resources: [.copy("mlx.zip")]
-        ),
-    ]
-    package.targets.first { $0.name == "Python" }?.dependencies
-        .append(.target(name: "mlx", condition: .when(traits: ["mlx"])))
-}

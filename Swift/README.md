@@ -134,14 +134,16 @@ them at all.
 
 ## Third-party modules
 
-**Pillow** is always built in, as `PIL`. `Swift/stage-pillow.sh`, which
-`build.sh` runs, stages its sources and those of libjpeg-turbo, FreeType and
-libwebp in `Modules/_pillow`, and SwiftPM compiles them for whatever platform
-is being built. It adds about 2.8 MB: JPEG, PNG, GIF, WebP and FreeType text.
+Packages of their own, forks of `Pillow` (about 2.8 MB) and `mlx` (about 18 MB),
+depend on the `PythonModules` product and declare a `PythonModule`. An app
+that wants one sets it before the interpreter starts:
 
-**MLX** is behind the `mlx` trait, as `mlx.core` plus its Python package.
-`Swift/build-mlx.sh` builds it per SDK with CMake into
-`Swift/.mlx-dist/MLXCore.xcframework`; it adds about 18 MB.
+```swift
+PyRuntime.additionalModules = [.pil, .mlx]
+```
+
+Their `StageStdlib` plugin zips the Python half as bytecode, with the python
+`build.sh` made.
 
 ## Platforms
 

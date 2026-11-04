@@ -1,4 +1,0 @@
-# Zipped as bytecode by Swift/stage-pillow.sh. Tk, Qt and Windows have no
-# place here.
-PIL
--PIL/ImageTk.py -PIL/_tkinter_finder.py -PIL/ImageQt.py -PIL/ImageWin.py

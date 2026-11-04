@@ -1,6 +1,6 @@
 """Zips the stdlib modules listed in a manifest as bytecode, for zipimport:
-`stage_stdlib.py <Lib dir> <manifest> <output zip>`. Bundled packages such as
-PIL and mlx are zipped by it too.
+`stage_stdlib.py <Lib dir> <manifest> <output zip>`. Packages such as PIL and
+mlx are zipped by it too.
 
 Bytecode only: docstrings and signatures survive in it, so help() works;
 only inspect.getsource and the source line under a stdlib traceback frame

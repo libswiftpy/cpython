@@ -104,8 +104,6 @@ print(" ".join(flags))
 find "$ENCODINGS_DIR" "$APPLE_SUPPORT_DIR" -name __pycache__ -type d \
     -exec rm -rf {} + 2>/dev/null || true
 
-# Pillow is compiled from source with the rest, for every platform.
-"$ROOT/Swift/stage-pillow.sh"
 
 echo "staged $DIST for CPython $VERSION ($(du -sh "$DIST" | cut -f1))"
 echo "staged encodings ($(du -sh "$ENCODINGS_DIR" | cut -f1))"
