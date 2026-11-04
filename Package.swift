@@ -386,7 +386,7 @@ let package = Package(
             name: "Cpyexpat",
             dependencies: ["CPython"],
             path: "Modules",
-            sources: ["pyexpat.c", "expat/xmlparse.c", "expat/xmlrole.c", "expat/xmltok.c", "_swiftpy/pyexpat/shim.c"],
+            sources: ["pyexpat.c", "expat/xcs.c", "expat/xmlparse.c", "expat/xmlrole.c", "expat/xmltok.c", "_swiftpy/pyexpat/shim.c"],
             publicHeadersPath: "_swiftpy/pyexpat",
             cSettings: moduleSettings + [.headerSearchPath("expat")]
         ),

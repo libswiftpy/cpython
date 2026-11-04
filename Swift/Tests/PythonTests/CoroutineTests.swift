@@ -33,14 +33,18 @@ struct CoroutineTests {
     }
 
     @Test func drivingRunsTheCoroutineToCompletion() async throws {
-        let result = try coroutine("""
+        // Its own namespace: other suites clear `__main__` while this sleeps.
+        let namespace = try PyRuntime.namespace()
+        let code = try PythonCompiler.compile("""
         import _swiftpy
         await _swiftpy.sleep(0.01)
         awaited_answer = 42
-        """)
-        try await PyRuntime.drive(result)
+        """, filename: "<await>")
+        try await PyRuntime.drive(PyRuntime.execute(code, globals: namespace))
 
-        #expect(try PyRuntime.evaluate("awaited_answer") == "42")
+        let read = try PythonCompiler.compile("awaited_answer", mode: .evaluation)
+        let answer = try await PyRuntime.execute(read, globals: namespace)
+        #expect(try PyRuntime.string(of: answer) == "42")
     }
 
     @Test func awaitEvaluatesToWhatSwiftSendsBack() async throws {
