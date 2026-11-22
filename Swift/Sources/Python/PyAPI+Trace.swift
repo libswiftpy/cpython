@@ -31,6 +31,23 @@ public extension PyAPI {
             return line >= 0 ? Int(line) : nil
         }
 
+        /// Running a module's own code, not a function or class body.
+        public var isModuleLevel: Bool {
+            guard let code = PyFrame_GetCode(reference) else { return false }
+            defer { Py_DecRef(UnsafeMutableRawPointer(code).assumingMemoryBound(to: CPython.PyObject.self)) }
+            let object = UnsafeMutableRawPointer(code).assumingMemoryBound(to: CPython.PyObject.self)
+            guard let name = PyObject_GetAttrString(object, "co_name") else {
+                PyErr_Clear()
+                return false
+            }
+            defer { Py_DecRef(name) }
+            guard let text = PyUnicode_AsUTF8(name) else {
+                PyErr_Clear()
+                return false
+            }
+            return String(cString: text) == "<module>"
+        }
+
         public var sourceLocation: String? {
             guard let code = PyFrame_GetCode(reference) else { return nil }
             defer { Py_DecRef(UnsafeMutableRawPointer(code).assumingMemoryBound(to: CPython.PyObject.self)) }
@@ -50,9 +67,9 @@ public extension PyAPI {
     }
 
     /// The innermost frame of the running stack whose source passes `matches`,
-    /// or the outermost one, as its source and line. Call with the GIL held,
-    /// from code Python called.
-    nonisolated static func frame(outermost: Bool = false, where matches: (String) -> Bool) -> (source: String, line: Int)? {
+    /// or the outermost one, as its source, line and whether it runs module
+    /// code. Call with the GIL held, from code Python called.
+    nonisolated static func frame(outermost: Bool = false, where matches: (String) -> Bool) -> (source: String, line: Int, isModuleLevel: Bool)? {
         // Unchecked: no thread state, as off Python's thread, means no stack.
         if let state = PyThreadState_GetUnchecked(), let found = frame(in: state, outermost: outermost, where: matches) {
             return found
@@ -68,14 +85,14 @@ public extension PyAPI {
         in state: UnsafeMutablePointer<PyThreadState>,
         outermost: Bool,
         where matches: (String) -> Bool
-    ) -> (source: String, line: Int)? {
-        var found: (source: String, line: Int)?
+    ) -> (source: String, line: Int, isModuleLevel: Bool)? {
+        var found: (source: String, line: Int, isModuleLevel: Bool)?
         var current = PyThreadState_GetFrame(state)
         while let frame = current {
             defer { Py_DecRef(UnsafeMutableRawPointer(frame).assumingMemoryBound(to: CPython.PyObject.self)) }
             let view = Frame(reference: frame)
             if let source = view.sourceLocation, matches(source), let line = view.lineNumber {
-                found = (source, line)
+                found = (source, line, view.isModuleLevel)
                 if !outermost { return found }
             }
             current = PyFrame_GetBack(frame)
