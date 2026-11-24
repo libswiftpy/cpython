@@ -1,8 +1,8 @@
-# The pure-Python stdlib the package ships, zipped by the StageStdlib plugin
-# with bytecode next to each source. One name per word, file or package
+# The pure-Python stdlib the package ships, zipped by Swift/stage.sh
+# as bytecode. One name per word, file or package
 # alike; a `-` prefix prunes a path inside a listed package. Everything else
 # the interpreter needs at start-up (os, io, abc, codecs, ...) is frozen into
-# libpython; encodings and _apple_support are staged by build.sh, because
+# libpython; encodings and _apple_support are staged by it too, because
 # they are needed before a zip on sys.path is.
 #
 # Sizes are of the source as staged (uncompressed, before zipping), so a

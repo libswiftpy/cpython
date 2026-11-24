@@ -17,9 +17,7 @@ case "${1:-simulator}" in
     *) echo "usage: build-visionos.sh [simulator|device]" >&2; exit 1 ;;
 esac
 
-# One staging directory per SDK, so both slices can be present at once. Which
-# one gets linked is decided in Xcode — see the README: SwiftPM cannot tell a
-# simulator destination from a device one.
+# One staging directory per SDK, all packed by build-xcframework.sh.
 DIST="$ROOT/Swift/.cpython-dist-$SDK"
 BUILD_DIR="$ROOT/cross-build/$HOST"
 BUILD_PYTHON="$ROOT/cross-build/$(uname -m)-apple-darwin/python.exe"

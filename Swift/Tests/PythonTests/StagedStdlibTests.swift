@@ -1,7 +1,8 @@
+import Foundation
 import Testing
 @testable import Python
 
-// Every optional module build.sh stages imports, and the C ones work.
+// Every optional module stage.sh stages imports, and the C ones work.
 @MainActor @Suite(.serialized) struct StagedStdlibTests {
     @Test func everythingImports() throws {
         try PyRuntime.initialize()
@@ -47,6 +48,37 @@ import Testing
         assert json.__spec__.origin.endswith('stdlib.zip/json/__init__.pyc'), json.__spec__.origin
         assert 'Serialize' in json.dumps.__doc__ and str(__import__('inspect').signature(json.dumps)).startswith('(obj, *,')
         assert not failed, failed
+        """)
+    }
+
+    /// Fails where Lib or modules.txt changed, or CPython's bytecode did, with
+    /// no Swift/stage.sh after it.
+    @Test func zipIsCurrent() throws {
+        try PyRuntime.initialize()
+        let root = URL(filePath: #filePath).appending(path: "../../../..").standardizedFileURL.path
+        try PyRuntime.run("""
+        import importlib.util, os, sys, zipfile
+        root = \(String(reflecting: root))
+        names = []
+        with open(f'{root}/Swift/Sources/stdlib/modules.txt') as file:
+            for line in file: names += line.split('#')[0].split()
+        with zipfile.ZipFile(next(p for p in sys.path if p.endswith('stdlib.zip'))) as archive:
+            pyc = {entry.removesuffix('.pyc'): archive.read(entry) for entry in archive.namelist()}
+        missing = [n for n in names if not n.startswith('-') and n not in pyc and f'{n}/__init__' not in pyc]
+        pruned = [n for n in names if n.startswith('-')
+                  and n[1:].removesuffix('.py') in pyc]
+        stale = []
+        for module, data in pyc.items():
+            with open(f'{root}/Lib/{module}.py', 'rb') as file: source = file.read()
+            if data[:4] != importlib.util.MAGIC_NUMBER or data[8:16] != importlib.util.source_hash(source):
+                stale.append(module)
+        assert not (missing or pruned or stale), f'run Swift/stage.sh: {missing=} {pruned=} {stale=}'
+        for package, folder in (('encodings', 'encodings/encodings'), ('', '_apple_support')):
+            staged = f'{root}/Swift/Sources/{folder}'
+            for name in os.listdir(staged):
+                if not name.endswith('.py'): continue
+                with open(f'{staged}/{name}') as a, open(os.path.join(root, 'Lib', package, name)) as b:
+                    assert a.read() == b.read(), f'run Swift/stage.sh: {name}'
         """)
     }
 }

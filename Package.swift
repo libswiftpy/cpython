@@ -1,61 +1,21 @@
 // swift-tools-version: 6.4
-import Foundation
 import PackageDescription
 
-// The interpreter staged by Swift/build.sh. Absolute, because SwiftPM makes no
-// promise about the working directory of compiler and linker invocations.
-let packageDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
-let distribution = URL(fileURLWithPath: packageDirectory)
-    .appendingPathComponent("Swift/.cpython-dist")
-
-// What libpython itself needs. These mirror the `Libs.private` line of
-// Misc/python-embed.pc; Swift/build.sh prints the flags configure actually
-// decided on, so compare the two if linking ever fails on a new platform.
-// (LINKFORSHARED's `-stack_size` is left out: the linker rejects it for the
-// test bundle. Add it to your own executable if you need deep recursion.)
+// What libpython itself needs, from the `Libs.private` line of
+// Misc/python-embed.pc; Swift/build.sh prints the flags configure decided on,
+// so compare the two if linking ever fails on a new platform.
 let systemLibraries: [LinkerSetting] = [
-    // By path, not -lpython: the products directory holds this package's own
-    // libPython.a, which -lpython finds first on a case-insensitive disk.
-    .unsafeFlags(
-        ["\(distribution.path)/lib/libpython.a",
-         "-liconv", "-ldl", "-framework", "CoreFoundation"],
-        .when(platforms: [.macOS])
-    ),
-    // No -L/-lpython for iOS: SwiftPM cannot tell a simulator destination from
-    // a device one, and rejects build-setting references like $(PLATFORM_NAME)
-    // in target flags, so it cannot pick between the two staged slices. The
-    // app supplies that with per-SDK LIBRARY_SEARCH_PATHS and -lpython in
-    // OTHER_LDFLAGS; the rest of the flags do not vary, so they live here.
-    // See Swift/README.md.
-    .unsafeFlags(
-        ["-liconv", "-ldl", "-lpthread", "-framework", "CoreFoundation"],
-        .when(platforms: [.iOS, .visionOS])
-    ),
-    .unsafeFlags(
-        ["-ldl", "-lm", "-lutil", "-Xlinker", "-export-dynamic"],
-        .when(platforms: [.linux, .android])
-    ),
-]
-
-// CPython's headers, for each platform's staged build.
-let pythonHeaders: [CSetting] = [
-    .unsafeFlags([
-        "-I\(distribution.path)/include/python",
-        "-I\(distribution.path)/include/python/internal",
-    ], .when(platforms: [.macOS])),
-    .unsafeFlags([
-        "-I\(packageDirectory)/Swift/.cpython-dist-iphoneos/include/python",
-        "-I\(packageDirectory)/Swift/.cpython-dist-iphoneos/include/python/internal",
-    ], .when(platforms: [.iOS])),
-    .unsafeFlags([
-        "-I\(packageDirectory)/Swift/.cpython-dist-xros/include/python",
-        "-I\(packageDirectory)/Swift/.cpython-dist-xros/include/python/internal",
-    ], .when(platforms: [.visionOS])),
+    .linkedLibrary("iconv"),
+    .linkedFramework("CoreFoundation"),
 ]
 
 // A stdlib C module compiles the way CPython compiles a builtin: against both
-// the public headers and Include/internal.
-let moduleSettings: [CSetting] = [.define("Py_BUILD_CORE_BUILTIN")] + pythonHeaders
+// the public headers and Include/internal. Relative to Modules.
+let moduleSettings: [CSetting] = [
+    .define("Py_BUILD_CORE_BUILTIN"),
+    .headerSearchPath("../Swift/Headers/python"),
+    .headerSearchPath("../Swift/Headers/python/internal"),
+]
 
 let package = Package(
     name: "cpython",
@@ -65,11 +25,17 @@ let package = Package(
         .library(name: "Python", targets: ["Python"]),
         // What a package of Python modules builds on, such as mlx or Pillow.
         .library(name: "PythonModules", targets: ["PythonModules"]),
-        .plugin(name: "StageStdlib", targets: ["StageStdlib"]),
         .executable(name: "pyrun", targets: ["pyrun"]),
         .executable(name: "pybench", targets: ["pybench"]),
     ],
     targets: [
+        // libpython for each SDK, made by Swift/build-xcframework.sh.
+        .binaryTarget(
+            name: "PythonCore",
+            url: "https://github.com/libswiftpy/cpython/releases/download/3.15.2-swiftpy.3/PythonCore.xcframework.zip",
+            checksum: "cc9249444e3a4d05b7f33b915386e22521fae2e2acc6bbad4df2f190b1eb71b7"
+        ),
+
         // The C API itself, imported through a module map.
         .systemLibrary(name: "CPython", path: "Swift/Sources/CPython"),
 
@@ -78,14 +44,15 @@ let package = Package(
         // lets `Python` depend on the modules it needs to start.
         .target(
             name: "PythonModules",
-            dependencies: ["CPython"],
-            path: "Swift/Sources/PythonModules"
+            dependencies: ["CPython", "PythonCore"],
+            path: "Swift/Sources/PythonModules",
+            linkerSettings: systemLibraries
         ),
 
         // The stdlib the interpreter cannot start without, one target per
         // module, named after the module it carries. SwiftPM packs each into
         // its own resource bundle, which Xcode embeds in the app — the only
-        // place a sandboxed app can read them from. Staged by Swift/build.sh.
+        // place a sandboxed app can read them from. Staged by Swift/stage.sh.
         .target(
             name: "encodings",
             dependencies: ["PythonModules"],
@@ -101,18 +68,13 @@ let package = Package(
 
         // The rest of the pure-Python stdlib the package ships, as one zip on
         // sys.path: zipimport loads the bytecode in it without a compile.
-        // The plugin builds it from Swift/Sources/stdlib/modules.txt.
+        // Swift/stage.sh makes it from Swift/Sources/stdlib/modules.txt.
         .target(
             name: "stdlib",
             dependencies: ["PythonModules"],
             path: "Swift/Sources/stdlib",
             exclude: ["modules.txt"],
-            plugins: [.plugin(name: "StageStdlib")]
-        ),
-        .plugin(
-            name: "StageStdlib",
-            capability: .buildTool(),
-            path: "Plugins/StageStdlib"
+            resources: [.copy("stdlib.zip")]
         ),
 
         // One C entry point per binding, so a Swift closure can be handed to
@@ -132,8 +94,7 @@ let package = Package(
             dependencies: ["CPython", "Cthunks", "PythonModules", "encodings", "_apple_support", "stdlib", "zlibmodule", "math", "_random", "_sha2", "_lsprof",
                            "_struct", "binascii", "_csv", "array", "cmathmodule", "_md5", "_sha1", "_sha3", "_blake2", "_sqlite3", "unicodedata", "pyexpat",
                            "select", "_socket", .target(name: "_posixsubprocess", condition: .when(platforms: [.macOS]))],
-            path: "Swift/Sources/Python",
-            linkerSettings: systemLibraries
+            path: "Swift/Sources/Python"
         ),
 
         // zlib: C only, so the compiled half and the Swift declaration are

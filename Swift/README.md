@@ -1,8 +1,9 @@
 # cpython, as a Swift package
 
 A minimal Swift package that embeds the CPython interpreter built from this
-source tree. Plain Swift/C interop through a module map — no XCFramework, no
-binary target.
+source tree. Plain Swift/C interop through a module map; `libpython` itself is a
+binary target, and the rest builds from source, so a fresh checkout needs no
+script run first.
 
 The manifest sits at the repository root (`Package.swift`) so that a fork of
 CPython *is* the Swift package; everything it adds lives here in `Swift/`.
@@ -10,11 +11,12 @@ CPython *is* the Swift package; everything it adds lives here in `Swift/`.
 | Path | What it is |
 | --- | --- |
 | `../Package.swift` | Package manifest: target paths, link flags |
-| `Swift/build.sh` | Builds CPython, stages `.cpython-dist` (headers, `libpython.a`), `encodings` and `_apple_support` |
+| `Swift/build-xcframework.sh` | Builds libpython for every Apple SDK, packs `PythonCore.xcframework` and makes `Swift/Headers` |
+| `Swift/stage.sh` | Refreshes the parts of `Lib` the package ships, all committed |
+| `Swift/build.sh`, `build-ios.sh`, `build-visionos.sh` | CPython's own builds, which `build-xcframework.sh` runs |
+| `Swift/Headers/python` | CPython's headers, with a `pyconfig.h` that picks the SDK's |
 | `Swift/Sources/stdlib/modules.txt` | The rest of the pure-Python stdlib to ship, with what each group costs |
-| `Plugins/StageStdlib/` | Build tool plugin: zips that list as bytecode into the `stdlib` target's resource |
-| `Swift/Sources/PythonEncodings/` | The `encodings` package, staged by `build.sh` as that target's resource |
-| `Swift/Sources/PythonAppleSupport/` | `_apple_support.py`, likewise |
+| `Swift/Sources/encodings`, `Swift/Sources/_apple_support` | What the interpreter imports while starting |
 | `Swift/Sources/CPython/module.modulemap` | Makes `Python.h` importable from Swift as `import CPython` |
 | `Swift/Sources/Python/Python.swift` | Thin Swift wrapper: start, run, evaluate, GIL, errors |
 | `Swift/Sources/Python/PythonModule.swift` | How a target declares its builtins and search paths |
@@ -24,7 +26,6 @@ CPython *is* the Swift package; everything it adds lives here in `Swift/`.
 ## Use
 
 ```sh
-./Swift/build.sh    # ~4 minutes; once, and after changing CPython itself
 swift test
 swift run pyrun "print('hello from', __import__('sys').version)"
 ```
@@ -43,21 +44,16 @@ API is visible to Swift.
 
 ## How it hangs together
 
-**Headers.** `build.sh` copies `Include/` plus the generated `pyconfig.h` into
-`.cpython-dist/include/python`, so every `#include` inside `Python.h` resolves
-relative to itself and no search paths are needed. The module map names that
-one header by a path relative to itself. Both the header directory and the
-staged `libpython.a` are unversioned, so a version bump in `patchlevel.h`
-changes nothing outside `build.sh`.
+**Headers.** `Swift/Headers/python` is a copy of `Include/` with every SDK's
+generated `pyconfig.h`, under a name of its own. Only those differ by SDK, so its
+`pyconfig.h` includes the right one by `TargetConditionals`. They aren't in
+`Include/`, where CPython's own build would find them before its own.
 
-**Linking.** `Package.swift` derives an absolute path to `.cpython-dist` from
-`#filePath` and links `-lpython` plus the system libraries libpython needs,
-chosen per platform with `.when(platforms:)`. CPython is configured
-`--disable-shared`, so the interpreter is statically linked into the Swift
-binary and there is nothing to ship alongside it but the stdlib below.
-`build.sh` prints the flags configure actually decided on (`LIBS`,
-`LINKFORSHARED`) and records them in `.cpython-dist/link-flags.txt`; compare
-them with the manifest if linking fails on a platform not listed there.
+**Linking.** `libpython` is `PythonCore`, a binary target holding a static
+library per SDK, so SwiftPM and Xcode pick the slice and the interpreter ends up
+in the binary. `build.sh` prints the flags configure decided on and records them
+in `.cpython-dist/link-flags.txt`; compare them with the manifest if linking
+fails.
 
 **Stdlib.** Almost everything the interpreter needs at start-up (`os`, `io`,
 `abc`, `codecs`, `site`, `stat`, `posixpath`, ...) is frozen into `libpython`.
@@ -111,8 +107,7 @@ over `STDOUT_FILENO` instead.
 Nothing to do: the bundled stdlib is a **resource of a Swift target** --
 `encodings` and `_apple_support` have one each, because the interpreter needs
 them while starting, and everything else is `stdlib.zip` in the `stdlib`
-target: bytecode only, built at compile time by the `StageStdlib` plugin from
-`modules.txt`, loaded by `zipimport` without a compile or an unzip. SwiftPM
+target: bytecode only, made by `stage.sh` from `modules.txt`, loaded by `zipimport` without a compile or an unzip. SwiftPM
 packs them into `cpython_*.bundle`s, and Xcode embeds those in
 `YourApp.app/Contents/Resources`. `Python.initialize()` puts their
 `Bundle.module` paths on `sys.path`, which a sandboxed app can read —
@@ -142,67 +137,30 @@ that wants one sets it before the interpreter starts:
 PyRuntime.additionalModules = [.pil, .mlx]
 ```
 
-Their `StageStdlib` plugin zips the Python half as bytecode, with the python
-`build.sh` made.
+Their Python half is a committed zip of bytecode too, which `stage.sh` refreshes
+where they're checked out beside this package.
+
+## What to run after a change
+
+| Changed | Run |
+| --- | --- |
+| Swift, `Modules/*.c` of a target, `Modules/_swiftpy` | nothing |
+| `Lib`, a `modules.txt`, Pillow's or mlx's Python | `Swift/stage.sh` |
+| `Include`, `Objects`, `Parser`, `Python`, a module inside libpython, a new CPython version | `Swift/build-xcframework.sh`, then a release |
+
+`StagedStdlibTests` fails where `stage.sh` was forgotten. `stage.sh` needs the
+host python in `cross-build`, so run `Swift/build.sh` once (about 4 minutes) on a
+machine that edits `Lib`.
+
+For a release, upload `Swift/.cpython-dist-xcframework/PythonCore.xcframework.zip`
+and put its URL and checksum in `Package.swift`. To try a build first, point the
+binary target at the folder next to it: `.binaryTarget(name: "PythonCore", path:
+"Swift/.cpython-dist-xcframework/PythonCore.xcframework")`.
 
 ## Platforms
 
-Each platform is built out of tree, in `cross-build/<triple>`, and staged
-separately; an iOS build refuses to run in a source tree that already holds a
-build, which is why the macOS build moved out of tree too.
-
-- **macOS (arm64)** — `./Swift/build.sh`. Built and tested against.
-- **iOS** — `./Swift/build-ios.sh simulator` **and** `./Swift/build-ios.sh
-  device`, after `build.sh`,
-  which supplies the host python the cross-build needs. `configure` refuses a
-  non-framework iOS build ("iOS builds must use --enable-framework"), but the
-  framework is linked *from* `libpython3.16.a`, and that static archive is
-  what gets staged — nothing to embed or sign, and no XCframework. Both
-  destinations verified: an app runs on the simulator and links for device.
-  See "Picking the iOS slice" below for the two build settings the app needs.
-- **Linux** — expected to work; the manifest links
-  `-ldl -lm -lutil -Xlinker -export-dynamic` there. Not verified.
-- **tvOS, watchOS, Android** — same shape as iOS, not wired up.
-
-### Picking the iOS slice
-
-`build-ios.sh` stages the two slices side by side, in
-`.cpython-dist-iphonesimulator` and `.cpython-dist-iphoneos`. Headers are
-picked automatically — `Sources/CPython/shim.h` dispatches on
-`TargetConditionals.h` — but the *library* cannot be: SwiftPM has no notion of
-a simulator destination, and rejects build-setting references such as
-`$(PLATFORM_NAME)` in target flags. (Autolinking it from the source with
-`#pragma comment(lib, ...)` does not work either; Darwin clang ignores that
-pragma.) This is the problem XCframeworks exist to solve.
-
-So the app target chooses, with two SDK-conditional settings. In Build
-Settings, add to **Library Search Paths** (the `+` on the row adds a
-condition), replacing the path with your checkout:
-
-| Condition | Value |
-| --- | --- |
-| Any iOS Simulator SDK | `<cpython>/Swift/.cpython-dist-iphonesimulator/lib` |
-| Any iOS SDK | `<cpython>/Swift/.cpython-dist-iphoneos/lib` |
-
-and to **Other Linker Flags**: `-lpython`.
-
-Everything else iOS needs — `-liconv -ldl -lpthread -framework
-CoreFoundation` — comes from the package. macOS needs none of this; it has
-one slice, so the package links it directly.
-
-*One architecture per slice.* Only arm64 is built, so build for an
-Apple-silicon simulator (`-destination 'platform=iOS Simulator,name=…'`, or
-`ONLY_ACTIVE_ARCH=YES`); `generic/platform=iOS Simulator` also wants x86_64.
-
-Headers are selected per destination by `Sources/CPython/shim.h` through
-`TargetConditionals.h`, so a project can build for macOS and iOS without
-touching the package.
-
-The package assumes a *host* build: `build.sh` configures and builds CPython
-for the machine it runs on, and SwiftPM then links that.
-
-Consuming a fork as a SwiftPM dependency works the same way, with one catch:
-`.cpython-dist` is git-ignored, so a fresh checkout in `.build/checkouts` has
-nothing to link against until `Swift/build.sh` has been run there. Commit the
-staged directory (or a prebuilt `libpython.a`) if you want the fork to be
-usable as a plain `.package(url:)` dependency.
+macOS, iOS, visionOS and their simulators, arm64 only, so build for an
+Apple-silicon simulator. Each is built out of tree, in `cross-build/<triple>`, as
+an iOS build refuses a source tree that already holds one. `configure` refuses a
+non-framework iOS build ("iOS builds must use --enable-framework"), but the
+framework is linked *from* `libpython.a`, which is what's kept.

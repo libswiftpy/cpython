@@ -4,8 +4,7 @@
 #
 # configure refuses a non-framework iOS build ("iOS builds must use
 # --enable-framework"), but the framework is linked *from* a static
-# libpython.a, and that archive is what we keep — no framework to embed and
-# sign, and no XCframework.
+# libpython.a, and that archive is what we keep: no framework to embed and sign.
 #
 #   ./Swift/build-ios.sh simulator   # arm64 iOS simulator (default)
 #   ./Swift/build-ios.sh device      # arm64 iOS device
@@ -19,9 +18,7 @@ case "${1:-simulator}" in
     *) echo "usage: build-ios.sh [simulator|device]" >&2; exit 1 ;;
 esac
 
-# One staging directory per SDK, so both slices can be present at once. Which
-# one gets linked is decided in Xcode — see the README: SwiftPM cannot tell a
-# simulator destination from a device one.
+# One staging directory per SDK, all packed by build-xcframework.sh.
 DIST="$ROOT/Swift/.cpython-dist-$SDK"
 BUILD_DIR="$ROOT/cross-build/$HOST"
 BUILD_PYTHON="$ROOT/cross-build/$(uname -m)-apple-darwin/python.exe"

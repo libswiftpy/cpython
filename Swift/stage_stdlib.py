@@ -6,8 +6,8 @@ Bytecode only: docstrings and signatures survive in it, so help() works;
 only inspect.getsource and the source line under a stdlib traceback frame
 are lost, for a third of the size.
 
-Run by the StageStdlib plugin with the python built by build.sh, so the
-bytecode matches the interpreter that will load it.
+Run by stage.sh with the python built by build.sh, so the bytecode matches
+the interpreter that will load it.
 """
 import compileall
 import py_compile
@@ -23,7 +23,7 @@ for line in manifest.read_text().splitlines():
     for word in line.split("#")[0].split():
         (prunes if word.startswith("-") else names).append(word.lstrip("-"))
 
-# Staged beside the output: the plugin sandbox allows writes only there.
+# Staged beside the output.
 staging = output.with_suffix(".staging")
 shutil.rmtree(staging, ignore_errors=True)
 staging.mkdir(parents=True)
@@ -56,6 +56,9 @@ try:
     output.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(staging.rglob("*.pyc")):
-            archive.write(path, path.relative_to(staging))
+            # A fixed date, so the same modules make the same zip.
+            entry = zipfile.ZipInfo(str(path.relative_to(staging)))
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(entry, path.read_bytes())
 finally:
     shutil.rmtree(staging, ignore_errors=True)
