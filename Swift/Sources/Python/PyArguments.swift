@@ -10,6 +10,7 @@ import CPython
 /// Indexing follows pocketpy's, which is what the bindings were written
 /// against: a method's receiver is argument 0.
 @MainActor
+@frozen
 public struct PyArguments {
     public typealias RawFirst = PyRef?
     public typealias RawSecond = PyRef?

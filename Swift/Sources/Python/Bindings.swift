@@ -1,5 +1,5 @@
 import CPython
-import Cthunks
+internal import Cthunks
 import Foundation
 
 /// Every binding, by the slot of the C thunk CPython calls for it.

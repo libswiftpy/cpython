@@ -1,32 +1,33 @@
 import CPython
 import PythonModules
-import _apple_support
-import encodings
-import stdlib
-import zlibmodule
-import math
-import _random
-import _sha2
-import _lsprof
-import _struct
-import binascii
-import _csv
-import array
-import cmathmodule
-import _md5
-import _sha1
-import _sha3
-import _blake2
-import _sqlite3
-import unicodedata
-import pyexpat
-import select
-import _socket
+internal import _apple_support
+internal import encodings
+internal import stdlib
+internal import zlibmodule
+internal import math
+internal import _random
+internal import _sha2
+internal import _lsprof
+internal import _struct
+internal import binascii
+internal import _csv
+internal import array
+internal import cmathmodule
+internal import _md5
+internal import _sha1
+internal import _sha3
+internal import _blake2
+internal import _sqlite3
+internal import unicodedata
+internal import pyexpat
+internal import select
+internal import _socket
 #if os(macOS)
-import _posixsubprocess
+internal import _posixsubprocess
 #endif
 
-@_exported import struct PythonModules.PythonModule
+/// PythonModules' module type, for `initialize(modules:)`, without re-exporting the rest of it.
+public typealias PythonModule = PythonModules.PythonModule
 
 import Foundation
 

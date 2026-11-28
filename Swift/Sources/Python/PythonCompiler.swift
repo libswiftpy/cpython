@@ -2,7 +2,7 @@ import CPython
 
 @MainActor
 public enum PythonCompiler {
-    public enum Mode: Sendable {
+    @frozen public enum Mode: Sendable {
         /// A script: statements run, nothing is echoed.
         case execution
         /// A single expression, whose value is the result.
